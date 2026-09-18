@@ -1,5 +1,15 @@
 import { JournalSystem, Clue, CharacterProfile } from "../investigation/JournalSystem";
 import { DialogueSystem, DialogueTree, DialogueNode, DialogueChoice } from "../dialogue/DialogueSystem";
+import { ALL_MYTH_CHAPTERS } from "../mythology/MythRegistry";
+import { QualityLevel } from "../graphics/GraphicsQualityManager";
+
+export interface UICallbacks {
+  onStartNewGame?: () => void;
+  onContinueGame?: () => void;
+  onSelectChapter?: (chapterId: string) => void;
+  onQualityChange?: (quality: QualityLevel) => void;
+  onVolumeChange?: (volume: number) => void;
+}
 
 export class UIManager {
   private mainMenuEl!: HTMLElement | null;
@@ -8,14 +18,19 @@ export class UIManager {
   private journalOverlayEl!: HTMLElement | null;
   private pauseMenuEl!: HTMLElement | null;
   private optionsMenuEl!: HTMLElement | null;
+  private controlsScreenEl!: HTMLElement | null;
+  private mythSelectionScreenEl!: HTMLElement | null;
   private loadingScreenEl!: HTMLElement | null;
 
   private currentJournalSystem: JournalSystem | null = null;
   private isJournalOpen: boolean = false;
+  private callbacks: UICallbacks = {};
 
-  constructor() {
+  constructor(callbacks: UICallbacks = {}) {
+    this.callbacks = callbacks;
     this.cacheElements();
     this.setupGlobalEvents();
+    this.setupMenuNavigation();
   }
 
   private cacheElements(): void {
@@ -25,7 +40,111 @@ export class UIManager {
     this.journalOverlayEl = document.getElementById("journal-overlay");
     this.pauseMenuEl = document.getElementById("pause-menu");
     this.optionsMenuEl = document.getElementById("options-screen") || document.getElementById("options-menu");
+    this.controlsScreenEl = document.getElementById("controls-screen");
+    this.mythSelectionScreenEl = document.getElementById("myth-selection-screen");
     this.loadingScreenEl = document.getElementById("loading-screen");
+  }
+
+  private setupMenuNavigation(): void {
+    // Selección de Mito
+    const btnSelectMyth = document.getElementById("btn-select-myth");
+    btnSelectMyth?.addEventListener("click", () => {
+      this.hideMainMenu();
+      this.showMythSelectionScreen();
+    });
+
+    const btnCloseMyth = document.getElementById("btn-close-myth-selection");
+    btnCloseMyth?.addEventListener("click", () => {
+      this.hideMythSelectionScreen();
+      this.showMainMenu();
+    });
+
+    // Opciones
+    const btnOptions = document.getElementById("btn-options");
+    btnOptions?.addEventListener("click", () => {
+      this.hideMainMenu();
+      this.showOptionsMenu();
+    });
+
+    const btnCloseOptions = document.getElementById("btn-close-options");
+    btnCloseOptions?.addEventListener("click", () => {
+      this.hideOptionsMenu();
+      this.showMainMenu();
+    });
+
+    // Controles
+    const btnControls = document.getElementById("btn-controls");
+    btnControls?.addEventListener("click", () => {
+      this.hideMainMenu();
+      this.showControlsScreen();
+    });
+
+    const btnCloseControls = document.getElementById("btn-close-controls");
+    btnCloseControls?.addEventListener("click", () => {
+      this.hideControlsScreen();
+      this.showMainMenu();
+    });
+
+    // Pause Menu
+    const btnResume = document.getElementById("btn-resume");
+    btnResume?.addEventListener("click", () => {
+      this.hidePauseMenu();
+    });
+
+    const btnExitToMain = document.getElementById("btn-exit-main");
+    btnExitToMain?.addEventListener("click", () => {
+      this.hidePauseMenu();
+      this.hideHUD();
+      this.showMainMenu();
+    });
+
+    // Option Quality Buttons
+    document.querySelectorAll(".quality-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const quality = (e.target as HTMLElement).getAttribute("data-quality") as QualityLevel;
+        if (quality && this.callbacks.onQualityChange) {
+          this.callbacks.onQualityChange(quality);
+          document.querySelectorAll(".quality-btn").forEach((b) => b.classList.remove("active"));
+          (e.target as HTMLElement).classList.add("active");
+        }
+      });
+    });
+
+    // Populate Myth Selection Cards
+    this.populateMythSelectionCards();
+  }
+
+  private populateMythSelectionCards(): void {
+    const container = document.getElementById("myths-grid");
+    if (!container) return;
+
+    container.innerHTML = "";
+    ALL_MYTH_CHAPTERS.forEach((myth) => {
+      const card = document.createElement("div");
+      card.className = `myth-card ${myth.unlockedByDefault ? "" : "locked"}`;
+      card.innerHTML = `
+        <div class="myth-card-header">
+          <h3>${myth.title}</h3>
+          <span class="badge">${myth.unlockedByDefault ? "DESBLOQUEADO" : "BLOQUEADO"}</span>
+        </div>
+        <p class="subtitle">${myth.subtitle}</p>
+        <p class="desc">${myth.description}</p>
+        <button class="menu-btn start-myth-btn" ${myth.unlockedByDefault ? "" : "disabled"}>
+          ${myth.unlockedByDefault ? "JUGAR MITO" : "BLOQUEADO"}
+        </button>
+      `;
+
+      if (myth.unlockedByDefault) {
+        card.querySelector(".start-myth-btn")?.addEventListener("click", () => {
+          this.hideMythSelectionScreen();
+          if (this.callbacks.onSelectChapter) {
+            this.callbacks.onSelectChapter(myth.id);
+          }
+        });
+      }
+
+      container.appendChild(card);
+    });
   }
 
   private setupGlobalEvents(): void {
@@ -33,6 +152,8 @@ export class UIManager {
       if (e.code === "KeyJ" || e.code === "Tab") {
         e.preventDefault();
         this.toggleJournal();
+      } else if (e.code === "Escape") {
+        this.togglePauseMenu();
       }
     });
 
@@ -41,6 +162,31 @@ export class UIManager {
       closeJournalBtn.addEventListener("click", () => {
         this.hideJournal();
       });
+    }
+
+    // Journal Tabs
+    document.querySelectorAll(".journal-tab").forEach((tab) => {
+      tab.addEventListener("click", (e) => {
+        document.querySelectorAll(".journal-tab").forEach((t) => t.classList.remove("active"));
+        (e.target as HTMLElement).classList.add("active");
+        const tabName = (e.target as HTMLElement).getAttribute("data-tab");
+        this.switchJournalTab(tabName);
+      });
+    });
+  }
+
+  private switchJournalTab(tabName: string | null): void {
+    const cluesList = document.getElementById("clues-list-container");
+    if (!cluesList) return;
+
+    if (tabName === "characters") {
+      cluesList.innerHTML = `<div class="info-card"><h4>Kallisto</h4><p>Superviviente y Erudito Helénico de la expedición.</p></div>`;
+    } else if (tabName === "myth-fact") {
+      cluesList.innerHTML = `<div class="info-card"><h4>Mito vs Realidad</h4><p>Compara elementos de las fuentes griegas antiguas contra mitos populares.</p></div>`;
+    } else if (tabName === "deduction") {
+      cluesList.innerHTML = `<div class="info-card"><h4>Tablero de Deducción</h4><p>Relaciona pistas para desentrañar la verdad del santuario.</p></div>`;
+    } else {
+      this.populateJournalContent();
     }
   }
 
@@ -59,12 +205,34 @@ export class UIManager {
   public showJournal(): void {
     this.isJournalOpen = true;
     this.journalOverlayEl?.classList.remove("hidden");
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
     this.populateJournalContent();
   }
 
   public hideJournal(): void {
     this.isJournalOpen = false;
     this.journalOverlayEl?.classList.add("hidden");
+  }
+
+  public togglePauseMenu(): void {
+    if (this.pauseMenuEl?.classList.contains("hidden")) {
+      this.showPauseMenu();
+    } else {
+      this.hidePauseMenu();
+    }
+  }
+
+  public showPauseMenu(): void {
+    this.pauseMenuEl?.classList.remove("hidden");
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }
+
+  public hidePauseMenu(): void {
+    this.pauseMenuEl?.classList.add("hidden");
   }
 
   private populateJournalContent(): void {
@@ -99,6 +267,30 @@ export class UIManager {
 
   public hideMainMenu(): void {
     this.mainMenuEl?.classList.add("hidden");
+  }
+
+  public showMythSelectionScreen(): void {
+    this.mythSelectionScreenEl?.classList.remove("hidden");
+  }
+
+  public hideMythSelectionScreen(): void {
+    this.mythSelectionScreenEl?.classList.add("hidden");
+  }
+
+  public showOptionsMenu(): void {
+    this.optionsMenuEl?.classList.remove("hidden");
+  }
+
+  public hideOptionsMenu(): void {
+    this.optionsMenuEl?.classList.add("hidden");
+  }
+
+  public showControlsScreen(): void {
+    this.controlsScreenEl?.classList.remove("hidden");
+  }
+
+  public hideControlsScreen(): void {
+    this.controlsScreenEl?.classList.add("hidden");
   }
 
   public toggleContinueButton(hasSave: boolean): void {
@@ -167,6 +359,9 @@ export class UIManager {
 
   public showDialogueOverlay(tree: DialogueTree, dialogueSystem: DialogueSystem): void {
     this.dialogueOverlayEl?.classList.remove("hidden");
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
 
     dialogueSystem.setOnNodeDisplayCallback((node: DialogueNode) => {
       this.renderDialogueNode(node, dialogueSystem);
@@ -237,6 +432,9 @@ export class UIManager {
       </div>
     `;
     resEl.classList.remove("hidden");
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
 
     document.getElementById("finish-chapter-btn")?.addEventListener("click", () => {
       resEl.classList.add("hidden");

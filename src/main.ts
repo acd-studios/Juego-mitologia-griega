@@ -35,7 +35,12 @@ class GameApp {
     this.graphicsManager = new GraphicsQualityManager(this.engineManager);
     this.audioManager = new AudioManager();
 
-    this.uiManager = new UIManager();
+    this.uiManager = new UIManager({
+      onStartNewGame: () => this.startChapter('medusa'),
+      onContinueGame: () => this.continueGame(),
+      onSelectChapter: (chapterId: string) => this.startChapter(chapterId),
+      onQualityChange: (quality: QualityLevel) => this.graphicsManager.setQuality(quality),
+    });
 
     // Bind UI buttons matching IDs in index.html
     const newGameBtn = document.getElementById("btn-new-game") || document.getElementById("new-game-btn");

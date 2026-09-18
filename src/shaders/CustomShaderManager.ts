@@ -25,9 +25,9 @@ export class CustomShaderManager {
       );
 
       let time = 0;
-      waterMaterial.setColor3("waterColor", new Color3(0.04, 0.12, 0.18));
-      waterMaterial.setColor3("foamColor", new Color3(0.5, 0.7, 0.8));
-      waterMaterial.setFloat("waveSpeed", 1.2);
+      waterMaterial.setColor3("waterColor", new Color3(0.05, 0.16, 0.24));
+      waterMaterial.setColor3("foamColor", new Color3(0.7, 0.85, 0.95));
+      waterMaterial.setFloat("waveSpeed", 1.4);
 
       scene.registerBeforeRender(() => {
         time += scene.getEngine().getDeltaTime() * 0.001;
@@ -66,7 +66,7 @@ export class CustomShaderManager {
       );
 
       let time = 0;
-      auraMaterial.setColor3("auraColor", new Color3(0.1, 0.9, 0.3));
+      auraMaterial.setColor3("auraColor", new Color3(0.1, 0.95, 0.35));
 
       scene.registerBeforeRender(() => {
         time += scene.getEngine().getDeltaTime() * 0.0015;
@@ -135,12 +135,12 @@ export class CustomShaderManager {
         vec3 color = waterColor;
 
         // Foam on wave crests
-        if (vWaveHeight > 0.2) {
-          float foamFactor = smoothstep(0.2, 0.4, vWaveHeight);
-          color = mix(color, foamColor, foamFactor * 0.6);
+        if (vWaveHeight > 0.18) {
+          float foamFactor = smoothstep(0.18, 0.4, vWaveHeight);
+          color = mix(color, foamColor, foamFactor * 0.75);
         }
 
-        gl_FragColor = vec4(color, 0.85);
+        gl_FragColor = vec4(color, 0.88);
       }
     `;
 
@@ -167,7 +167,7 @@ export class CustomShaderManager {
         vNormal = normal;
 
         vec3 p = position;
-        p += normal * (sin(p.y * 5.0 + time * 4.0) * 0.06);
+        p += normal * (sin(p.y * 5.0 + time * 4.0) * 0.08);
 
         gl_Position = worldViewProjection * vec4(p, 1.0);
       }
@@ -182,9 +182,9 @@ export class CustomShaderManager {
       uniform float time;
 
       void main(void) {
-        float pulse = sin(time * 3.0) * 0.2 + 0.8;
+        float pulse = sin(time * 3.5) * 0.25 + 0.75;
         vec3 finalColor = auraColor * pulse;
-        float alpha = 0.6 + sin(vUV.y * 10.0 + time * 2.0) * 0.2;
+        float alpha = 0.65 + sin(vUV.y * 12.0 + time * 2.5) * 0.25;
 
         gl_FragColor = vec4(finalColor, alpha);
       }
