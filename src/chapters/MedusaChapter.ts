@@ -87,9 +87,14 @@ export class MedusaChapter extends MythChapter {
     this.engineManager.setScene(this.scene);
     onProgress(20);
 
+    // Instantiate Builders
+    this.archBuilder = new GreekArchitectureBuilder(this.scene);
+    this.assetGenerator = new HellenicAssetGenerator(this.scene);
+    this.npcBuilder = new NPCCharacterBuilder(this.scene);
+
     // Texturas
-    this.stoneNormalMap = ProceduralTextureGenerator.createStoneNormalMap("stoneNorm", this.scene, 512, 1.2);
-    this.marbleTexture = ProceduralTextureGenerator.createMarbleTexture("marbleTex", this.scene, 512);
+    this.stoneNormalMap = ProceduralTextureGenerator.createStoneNormalMap("stoneNorm", this.scene, 256, 1.2);
+    this.marbleTexture = ProceduralTextureGenerator.createMarbleTexture("marbleTex", this.scene, 256);
 
     // Configurar Sistemas Narrative & Audio
     this.journalSystem = new JournalSystem();
@@ -121,10 +126,6 @@ export class MedusaChapter extends MythChapter {
     onProgress(60);
 
     // Arquitectura Griega Encerrada + Templo Exterior + Hellenic Props
-    this.archBuilder = new GreekArchitectureBuilder(this.scene);
-    this.assetGenerator = new HellenicAssetGenerator(this.scene);
-    this.npcBuilder = new NPCCharacterBuilder(this.scene);
-
     this.buildEnclosedSanctuaryComplex();
     this.buildPetrifiedStatues();
     onProgress(80);
@@ -177,7 +178,9 @@ export class MedusaChapter extends MythChapter {
   }
 
   private createBrazierLight(pos: Vector3): void {
-    this.assetGenerator.createBronzeTripodBrazier(pos);
+    if (this.assetGenerator) {
+      this.assetGenerator.createBronzeTripodBrazier(pos);
+    }
 
     const light = new PointLight("brazierLight", new Vector3(pos.x, pos.y + 1.6, pos.z), this.scene);
     light.diffuse = new Color3(1.0, 0.55, 0.15);

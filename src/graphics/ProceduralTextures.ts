@@ -1,10 +1,18 @@
-import { DynamicTexture, RawTexture, Scene, Texture, Color3 } from "@babylonjs/core";
+import { DynamicTexture, Scene, Texture } from "@babylonjs/core";
 
 export class ProceduralTextureGenerator {
+  private static cachedStoneNormals: Map<string, Texture> = new Map();
+  private static cachedMarbleTextures: Map<string, Texture> = new Map();
+
   /**
-   * Generates a seamless procedural normal map for stone/rock/marble surfaces.
+   * Generates a seamless procedural normal map for stone/rock/marble surfaces (Optimized 256x256 with caching).
    */
-  public static createStoneNormalMap(name: string, scene: Scene, size: number = 512, intensity: number = 1.0): Texture {
+  public static createStoneNormalMap(name: string, scene: Scene, size: number = 256, intensity: number = 1.0): Texture {
+    const cacheKey = `${name}_${size}_${intensity}`;
+    if (this.cachedStoneNormals.has(cacheKey)) {
+      return this.cachedStoneNormals.get(cacheKey)!;
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -17,20 +25,13 @@ export class ProceduralTextureGenerator {
     const imgData = ctx.createImageData(size, size);
     const data = imgData.data;
 
-    // Generate height map using perlin-like multi-scale noise
+    // Fast multi-scale sine wave heightmap (2 octaves for max speed)
     const heights = new Float32Array(size * size);
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        let val = 0;
-        let scale = 0.02;
-        let weight = 1.0;
-        for (let o = 0; o < 4; o++) {
-          const nx = x * scale;
-          const ny = y * scale;
-          val += (Math.sin(nx) * Math.cos(ny) + Math.sin(nx * 1.7 + ny * 0.9) * 0.5) * weight;
-          scale *= 2.2;
-          weight *= 0.5;
-        }
+        const nx = x * 0.05;
+        const ny = y * 0.05;
+        const val = Math.sin(nx) * Math.cos(ny) + Math.sin(nx * 2.1 + ny * 1.3) * 0.5;
         heights[y * size + x] = val;
       }
     }
@@ -43,11 +44,10 @@ export class ProceduralTextureGenerator {
         const yUp = heights[((y - 1 + size) % size) * size + x];
         const yDown = heights[((y + 1) % size) * size + x];
 
-        const dx = (xRight - xLeft) * intensity * 2.0;
-        const dy = (yDown - yUp) * intensity * 2.0;
+        const dx = (xRight - xLeft) * intensity * 1.5;
+        const dy = (yDown - yUp) * intensity * 1.5;
         const dz = 1.0;
 
-        // Normalize
         const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const nx = (dx / len) * 0.5 + 0.5;
         const ny = (dy / len) * 0.5 + 0.5;
@@ -63,15 +63,21 @@ export class ProceduralTextureGenerator {
 
     ctx.putImageData(imgData, 0, 0);
 
-    const dynTexture = new DynamicTexture(name, canvas, scene, true);
+    const dynTexture = new DynamicTexture(name, canvas, scene, false);
     dynTexture.hasAlpha = false;
+    this.cachedStoneNormals.set(cacheKey, dynTexture);
     return dynTexture;
   }
 
   /**
-   * Generates a procedural marble vein texture.
+   * Generates a procedural marble vein texture (Optimized 256x256 with caching).
    */
-  public static createMarbleTexture(name: string, scene: Scene, size: number = 512): Texture {
+  public static createMarbleTexture(name: string, scene: Scene, size: number = 256): Texture {
+    const cacheKey = `${name}_${size}`;
+    if (this.cachedMarbleTextures.has(cacheKey)) {
+      return this.cachedMarbleTextures.get(cacheKey)!;
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -81,45 +87,36 @@ export class ProceduralTextureGenerator {
       return new DynamicTexture(name, size, scene, false);
     }
 
-    ctx.fillStyle = "#f0eae1";
+    ctx.fillStyle = "#f2ece4";
     ctx.fillRect(0, 0, size, size);
 
-    // Draw veins
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(70, 65, 60, 0.25)";
+    // Draw fast marble veins
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(80, 75, 70, 0.22)";
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
       ctx.beginPath();
       let x = Math.random() * size;
       let y = 0;
       ctx.moveTo(x, y);
 
       while (y < size) {
-        x += (Math.random() - 0.5) * 35;
-        y += Math.random() * 25 + 10;
+        x += (Math.random() - 0.5) * 30;
+        y += Math.random() * 20 + 10;
         ctx.lineTo(x, y);
       }
       ctx.stroke();
     }
 
-    // Overlay soft noise
-    const imgData = ctx.getImageData(0, 0, size, size);
-    const data = imgData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const n = (Math.random() - 0.5) * 15;
-      data[i] = Math.min(255, Math.max(0, data[i] + n));
-      data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + n));
-      data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + n));
-    }
-    ctx.putImageData(imgData, 0, 0);
-
-    return new DynamicTexture(name, canvas, scene, true);
+    const dynTexture = new DynamicTexture(name, canvas, scene, false);
+    this.cachedMarbleTextures.set(cacheKey, dynTexture);
+    return dynTexture;
   }
 
   /**
    * Generates a procedural moss/weathering roughness map.
    */
-  public static createMossRoughnessMap(name: string, scene: Scene, size: number = 256): Texture {
+  public static createMossRoughnessMap(name: string, scene: Scene, size: number = 128): Texture {
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
@@ -144,6 +141,6 @@ export class ProceduralTextureGenerator {
     }
     ctx.putImageData(imgData, 0, 0);
 
-    return new DynamicTexture(name, canvas, scene, true);
+    return new DynamicTexture(name, canvas, scene, false);
   }
 }
