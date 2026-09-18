@@ -75,24 +75,14 @@ export class MedusaChapter extends MythChapter {
     this.scene.fogColor = new Color3(0.06, 0.08, 0.12);
 
     this.engineManager.setScene(this.scene);
-    onProgress(30);
+    onProgress(20);
 
     // Configurar Sistemas Narrative & Audio
     this.journalSystem = new JournalSystem();
     this.dialogueSystem = new DialogueSystem();
     this.setupJournalNotifications();
 
-    // Iluminación
-    this.setupLighting();
-    onProgress(50);
-
-    // Construir Escenario 3D PBR (Isla, Templo Griego, Santuario, Cueva)
-    this.buildIslandEnvironment();
-    this.buildTempleAndSanctuary();
-    this.buildPetrifiedStatues();
-    onProgress(70);
-
-    // Configurar Jugador, Cámara e Interacción
+    // Configurar Jugador, Cámara e Interacción PRIMERO
     this.player = new PlayerController(this.scene, new Vector3(0, 1.2, -18));
     this.cameraManager = new CameraManager(this.scene, this.engineManager.getCanvas());
     this.cameraManager.followTarget(this.player.getMesh());
@@ -109,6 +99,18 @@ export class MedusaChapter extends MythChapter {
         this.uiManager.hideInteractionPrompt();
       }
     });
+
+    onProgress(40);
+
+    // Iluminación
+    this.setupLighting();
+    onProgress(60);
+
+    // Construir Escenario 3D PBR (Isla, Templo Griego, Santuario, Cueva)
+    this.buildIslandEnvironment();
+    this.buildTempleAndSanctuary();
+    this.buildPetrifiedStatues();
+    onProgress(80);
 
     // Puzzles & Pistas
     this.setupPuzzles();
@@ -253,30 +255,34 @@ export class MedusaChapter extends MythChapter {
       statue.rotation.z = idx === 1 ? 0.3 : 0;
       statue.material = stoneMat;
 
-      this.interactionSystem.registerInteractable({
-        id: "statue_" + idx,
-        name: "Estatua de Explorador Petrificado",
-        actionText: "EXAMINAR HUELLAS DE PIEDRA",
-        mesh: statue,
-        onInteract: () => {
-          this.audioManager.playSFX('clue');
-          this.journalSystem.registerClue({
-            id: "clue_statue_" + idx,
-            title: "Víctima Petrificada #" + (idx + 1),
-            type: "STATUE",
-            description: "No es una escultura tradicional. Sus facciones muestran verdadero pánico antes de convertirse en piedra instantáneamente.",
-            locationFound: "Pórtico del Templo",
-            mythVsFact: {
-              mythicElement: "Se decía que la mirada de Medusa petrificaba instantáneamente.",
-              historicalElement: "Estudios arqueológicos sugieren reacciones químicas desconocidas o mitos para infundir temor."
-            }
-          });
-        }
-      });
+      if (this.interactionSystem) {
+        this.interactionSystem.registerInteractable({
+          id: "statue_" + idx,
+          name: "Estatua de Explorador Petrificado",
+          actionText: "EXAMINAR HUELLAS DE PIEDRA",
+          mesh: statue,
+          onInteract: () => {
+            this.audioManager.playSFX('clue');
+            this.journalSystem.registerClue({
+              id: "clue_statue_" + idx,
+              title: "Víctima Petrificada #" + (idx + 1),
+              type: "STATUE",
+              description: "No es una escultura tradicional. Sus facciones muestran verdadero pánico antes de convertirse en piedra instantáneamente.",
+              locationFound: "Pórtico del Templo",
+              mythVsFact: {
+                mythicElement: "Se decía que la mirada de Medusa petrificaba instantáneamente.",
+                historicalElement: "Estudios arqueológicos sugieren reacciones químicas desconocidas o mitos para infundir temor."
+              }
+            });
+          }
+        });
+      }
     });
   }
 
   private setupInteractableCluesAndNPCs(): void {
+    if (!this.interactionSystem) return;
+
     // NPC: Erudito Kallisto
     this.survivorNPCMesh = MeshBuilder.CreateCapsule("scholar_npc", { height: 1.75, radius: 0.4 }, this.scene);
     this.survivorNPCMesh.position = new Vector3(-5, 1.8, -8);
@@ -361,6 +367,8 @@ export class MedusaChapter extends MythChapter {
   }
 
   private setupPuzzles(): void {
+    if (!this.interactionSystem) return;
+
     // 1. Light & Mirror Puzzle
     this.mirrorPuzzle = new LightMirrorPuzzle(this.scene);
     const mirror1 = MeshBuilder.CreateBox("mirror_1", { width: 0.2, height: 2, depth: 1.2 }, this.scene);
@@ -502,15 +510,17 @@ export class MedusaChapter extends MythChapter {
     });
 
     // Registro de interacción final para neutralizar a Medusa
-    this.interactionSystem.registerInteractable({
-      id: "boss_medusa",
-      name: "Medusa la Gorgona",
-      actionText: "REFLEJAR MIRADA CON ESCUDO DE BRONCE",
-      mesh: this.medusaMesh,
-      onInteract: () => {
-        this.resolveChapterClimax();
-      }
-    });
+    if (this.interactionSystem) {
+      this.interactionSystem.registerInteractable({
+        id: "boss_medusa",
+        name: "Medusa la Gorgona",
+        actionText: "REFLEJAR MIRADA CON ESCUDO DE BRONCE",
+        mesh: this.medusaMesh,
+        onInteract: () => {
+          this.resolveChapterClimax();
+        }
+      });
+    }
   }
 
   private resolveChapterClimax(): void {
