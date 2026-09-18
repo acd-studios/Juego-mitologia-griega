@@ -37,9 +37,12 @@ class GameApp {
 
     this.uiManager = new UIManager();
 
-    // Bind UI buttons
-    document.getElementById("new-game-btn")?.addEventListener("click", () => this.startChapter('medusa'));
-    document.getElementById("continue-btn")?.addEventListener("click", () => this.continueGame());
+    // Bind UI buttons matching IDs in index.html
+    const newGameBtn = document.getElementById("btn-new-game") || document.getElementById("new-game-btn");
+    newGameBtn?.addEventListener("click", () => this.startChapter('medusa'));
+
+    const continueBtn = document.getElementById("btn-continue") || document.getElementById("continue-btn");
+    continueBtn?.addEventListener("click", () => this.continueGame());
 
     // Cargar opciones guardadas
     const savedSettings = this.saveSystem.getSettings();

@@ -2,13 +2,13 @@ import { JournalSystem, Clue, CharacterProfile } from "../investigation/JournalS
 import { DialogueSystem, DialogueTree, DialogueNode, DialogueChoice } from "../dialogue/DialogueSystem";
 
 export class UIManager {
-  private mainMenuEl!: HTMLElement;
-  private hudEl!: HTMLElement;
-  private dialogueOverlayEl!: HTMLElement;
-  private journalOverlayEl!: HTMLElement;
-  private pauseMenuEl!: HTMLElement;
-  private optionsMenuEl!: HTMLElement;
-  private loadingScreenEl!: HTMLElement;
+  private mainMenuEl!: HTMLElement | null;
+  private hudEl!: HTMLElement | null;
+  private dialogueOverlayEl!: HTMLElement | null;
+  private journalOverlayEl!: HTMLElement | null;
+  private pauseMenuEl!: HTMLElement | null;
+  private optionsMenuEl!: HTMLElement | null;
+  private loadingScreenEl!: HTMLElement | null;
 
   private currentJournalSystem: JournalSystem | null = null;
   private isJournalOpen: boolean = false;
@@ -19,13 +19,13 @@ export class UIManager {
   }
 
   private cacheElements(): void {
-    this.mainMenuEl = document.getElementById("main-menu")!;
-    this.hudEl = document.getElementById("hud")!;
-    this.dialogueOverlayEl = document.getElementById("dialogue-overlay")!;
-    this.journalOverlayEl = document.getElementById("journal-overlay")!;
-    this.pauseMenuEl = document.getElementById("pause-menu")!;
-    this.optionsMenuEl = document.getElementById("options-menu")!;
-    this.loadingScreenEl = document.getElementById("loading-screen")!;
+    this.mainMenuEl = document.getElementById("main-menu");
+    this.hudEl = document.getElementById("ui-container");
+    this.dialogueOverlayEl = document.getElementById("dialogue-overlay");
+    this.journalOverlayEl = document.getElementById("journal-overlay");
+    this.pauseMenuEl = document.getElementById("pause-menu");
+    this.optionsMenuEl = document.getElementById("options-screen") || document.getElementById("options-menu");
+    this.loadingScreenEl = document.getElementById("loading-screen");
   }
 
   private setupGlobalEvents(): void {
@@ -36,7 +36,7 @@ export class UIManager {
       }
     });
 
-    const closeJournalBtn = document.getElementById("close-journal-btn");
+    const closeJournalBtn = document.getElementById("btn-close-journal") || document.getElementById("close-journal-btn");
     if (closeJournalBtn) {
       closeJournalBtn.addEventListener("click", () => {
         this.hideJournal();
@@ -58,17 +58,17 @@ export class UIManager {
 
   public showJournal(): void {
     this.isJournalOpen = true;
-    this.journalOverlayEl.classList.remove("hidden");
+    this.journalOverlayEl?.classList.remove("hidden");
     this.populateJournalContent();
   }
 
   public hideJournal(): void {
     this.isJournalOpen = false;
-    this.journalOverlayEl.classList.add("hidden");
+    this.journalOverlayEl?.classList.add("hidden");
   }
 
   private populateJournalContent(): void {
-    const listEl = document.getElementById("clues-list");
+    const listEl = document.getElementById("clues-list-container") || document.getElementById("clues-list");
     if (!listEl || !this.currentJournalSystem) return;
 
     listEl.innerHTML = "";
@@ -94,15 +94,15 @@ export class UIManager {
   }
 
   public showMainMenu(): void {
-    this.mainMenuEl.classList.remove("hidden");
+    this.mainMenuEl?.classList.remove("hidden");
   }
 
   public hideMainMenu(): void {
-    this.mainMenuEl.classList.add("hidden");
+    this.mainMenuEl?.classList.add("hidden");
   }
 
   public toggleContinueButton(hasSave: boolean): void {
-    const continueBtn = document.getElementById("continue-btn");
+    const continueBtn = document.getElementById("btn-continue") || document.getElementById("continue-btn");
     if (continueBtn) {
       if (hasSave) {
         continueBtn.removeAttribute("disabled");
@@ -113,11 +113,11 @@ export class UIManager {
   }
 
   public showHUD(): void {
-    this.hudEl.classList.remove("hidden");
+    this.hudEl?.classList.remove("hidden");
   }
 
   public hideHUD(): void {
-    this.hudEl.classList.add("hidden");
+    this.hudEl?.classList.add("hidden");
   }
 
   public showLoadingScreen(title: string, subtitle: string): void {
@@ -125,16 +125,16 @@ export class UIManager {
     const subEl = document.getElementById("loading-subtitle");
     if (titleEl) titleEl.innerText = title;
     if (subEl) subEl.innerText = subtitle;
-    this.loadingScreenEl.classList.remove("hidden");
+    this.loadingScreenEl?.classList.remove("hidden");
   }
 
   public updateLoadingProgress(percent: number): void {
-    const fillEl = document.getElementById("loading-fill");
+    const fillEl = document.getElementById("loading-progress") || document.getElementById("loading-fill");
     if (fillEl) fillEl.style.width = `${percent}%`;
   }
 
   public hideLoadingScreen(): void {
-    this.loadingScreenEl.classList.add("hidden");
+    this.loadingScreenEl?.classList.add("hidden");
   }
 
   public showInteractionPrompt(actionText: string, objectName: string): void {
@@ -151,11 +151,11 @@ export class UIManager {
   }
 
   public showNotification(title: string, message: string): void {
-    const notifContainer = document.getElementById("notification-container");
+    const notifContainer = document.getElementById("notification-toast") || document.getElementById("notification-container");
     if (!notifContainer) return;
 
     const notif = document.createElement("div");
-    notif.className = "notification-toast";
+    notif.className = "notification-toast-item";
     notif.innerHTML = `<strong>${title}</strong><p>${message}</p>`;
 
     notifContainer.appendChild(notif);
@@ -166,7 +166,7 @@ export class UIManager {
   }
 
   public showDialogueOverlay(tree: DialogueTree, dialogueSystem: DialogueSystem): void {
-    this.dialogueOverlayEl.classList.remove("hidden");
+    this.dialogueOverlayEl?.classList.remove("hidden");
 
     dialogueSystem.setOnNodeDisplayCallback((node: DialogueNode) => {
       this.renderDialogueNode(node, dialogueSystem);
@@ -183,7 +183,7 @@ export class UIManager {
     const speakerNameEl = document.getElementById("speaker-name");
     const speakerTitleEl = document.getElementById("speaker-title");
     const dialogueTextEl = document.getElementById("dialogue-text");
-    const choicesListEl = document.getElementById("choices-list");
+    const choicesListEl = document.getElementById("dialogue-choices") || document.getElementById("choices-list");
 
     if (speakerNameEl) speakerNameEl.innerText = node.speakerName;
     if (speakerTitleEl) speakerTitleEl.innerText = node.speakerTitle || "";
@@ -204,13 +204,15 @@ export class UIManager {
   }
 
   public hideDialogueOverlay(): void {
-    this.dialogueOverlayEl.classList.add("hidden");
+    this.dialogueOverlayEl?.classList.add("hidden");
   }
 
   public showSubtitle(text: string): void {
-    const subContainer = document.getElementById("subtitle-container");
+    const subContainer = document.getElementById("subtitle-box") || document.getElementById("subtitle-container");
+    const subText = document.getElementById("subtitle-text");
+    if (subText) subText.innerText = text;
+
     if (subContainer) {
-      subContainer.innerText = text;
       subContainer.classList.remove("hidden");
       setTimeout(() => {
         subContainer.classList.add("hidden");

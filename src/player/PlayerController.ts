@@ -1,4 +1,5 @@
-import { Scene, Vector3, Mesh, MeshBuilder, StandardMaterial, PBRMaterial, Color3, Matrix } from "@babylonjs/core";
+import { Scene, Vector3, Mesh, MeshBuilder, PBRMaterial, Color3 } from "@babylonjs/core";
+import { CameraManager } from "../camera/CameraManager";
 
 export interface PlayerInput {
   moveForward: boolean;
@@ -12,6 +13,7 @@ export interface PlayerInput {
 
 export class PlayerController {
   private scene: Scene;
+  private cameraManager: CameraManager;
   private mesh: Mesh;
   private input: PlayerInput = {
     moveForward: false,
@@ -23,17 +25,18 @@ export class PlayerController {
     interact: false
   };
 
-  private walkSpeed: number = 4.5;
-  private runSpeed: number = 7.5;
-  private crouchSpeed: number = 2.2;
+  private walkSpeed: number = 4.8;
+  private runSpeed: number = 8.0;
+  private crouchSpeed: number = 2.4;
   private currentSpeed: number = 0;
 
   private onFootstepCallback?: () => void;
   private footstepTimer: number = 0;
 
-  constructor(scene: Scene, initialPosition: Vector3 = new Vector3(0, 1.2, -18)) {
+  constructor(scene: Scene, cameraManager: CameraManager, initialPosition: Vector3 = new Vector3(0, 0, -18)) {
     this.scene = scene;
-    this.mesh = this.createPlayerMesh(initialPosition);
+    this.cameraManager = cameraManager;
+    this.mesh = this.createPlayerCollider(initialPosition);
     this.setupInput();
 
     this.scene.registerBeforeRender(() => {
@@ -41,16 +44,11 @@ export class PlayerController {
     });
   }
 
-  private createPlayerMesh(position: Vector3): Mesh {
-    const playerMesh = MeshBuilder.CreateCapsule("playerMesh", { height: 1.8, radius: 0.4 }, this.scene);
+  private createPlayerCollider(position: Vector3): Mesh {
+    const playerMesh = MeshBuilder.CreateCapsule("playerCollider", { height: 1.8, radius: 0.4 }, this.scene);
     playerMesh.position = position;
     playerMesh.checkCollisions = true;
-
-    const mat = new PBRMaterial("playerMat", this.scene);
-    mat.albedoColor = new Color3(0.2, 0.4, 0.7);
-    mat.roughness = 0.5;
-    playerMesh.material = mat;
-
+    playerMesh.isVisible = false; // Hidden in First-Person view
     return playerMesh;
   }
 
@@ -59,8 +57,8 @@ export class PlayerController {
       switch (e.code) {
         case "KeyW": case "ArrowUp": this.input.moveForward = true; break;
         case "KeyS": case "ArrowDown": this.input.moveBackward = true; break;
-        case "KeyA": case "ArrowLeft": this.input.moveLeft = true; break;
-        case "KeyD": case "ArrowRight": this.input.moveRight = true; break;
+        case "KeyA": case "ArrowLeft": this.input.moveLeft = true; break;  // Left
+        case "KeyD": case "ArrowRight": this.input.moveRight = true; break; // Right
         case "ShiftLeft": case "ShiftRight": this.input.isRunning = true; break;
         case "KeyC": case "ControlLeft": this.input.isCrouching = !this.input.isCrouching; break;
       }
@@ -78,8 +76,7 @@ export class PlayerController {
   }
 
   private updateMovement(): void {
-    const activeCamera = this.scene.activeCamera;
-    if (!activeCamera) return;
+    const camera = this.cameraManager.getCamera();
 
     let targetSpeed = this.walkSpeed;
     if (this.input.isRunning && !this.input.isCrouching) {
@@ -90,27 +87,26 @@ export class PlayerController {
 
     this.currentSpeed = targetSpeed;
 
-    // Direct vectors relative to active camera direction
-    const forward = activeCamera.getForwardRay().direction;
+    // Get camera forward and right directions on the horizontal XZ plane
+    const forward = camera.getDirection(Vector3.Forward());
     forward.y = 0;
     forward.normalize();
 
-    const right = Vector3.Cross(Vector3.Up(), forward).normalize();
+    const right = camera.getDirection(Vector3.Right());
+    right.y = 0;
+    right.normalize();
 
     const moveDir = Vector3.Zero();
 
     if (this.input.moveForward) moveDir.addInPlace(forward);
     if (this.input.moveBackward) moveDir.addInPlace(forward.scale(-1));
-    if (this.input.moveLeft) moveDir.addInPlace(right.scale(-1)); // Corrected left direction
-    if (this.input.moveRight) moveDir.addInPlace(right);          // Corrected right direction
+    if (this.input.moveLeft) moveDir.addInPlace(right.scale(-1)); // A = LEFT (correct)
+    if (this.input.moveRight) moveDir.addInPlace(right);          // D = RIGHT (correct)
 
-    if (moveDir.lengthSquared() > 0) {
+    const isMoving = moveDir.lengthSquared() > 0;
+
+    if (isMoving) {
       moveDir.normalize();
-
-      // Rotate mesh toward movement direction
-      const targetAngle = Math.atan2(moveDir.x, moveDir.z);
-      this.mesh.rotation.y = targetAngle;
-
       const deltaTime = this.scene.getEngine().getDeltaTime() * 0.001;
       const velocity = moveDir.scale(this.currentSpeed * deltaTime);
 
@@ -126,6 +122,9 @@ export class PlayerController {
         }
       }
     }
+
+    // Sync camera position to player collider
+    this.cameraManager.updatePosition(this.mesh.position, isMoving, this.input.isRunning ? 1.5 : 1.0);
   }
 
   public getMesh(): Mesh {
