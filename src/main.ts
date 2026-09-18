@@ -35,13 +35,11 @@ class GameApp {
     this.graphicsManager = new GraphicsQualityManager(this.engineManager);
     this.audioManager = new AudioManager();
 
-    this.uiManager = new UIManager({
-      onStartNewGame: () => this.startChapter('medusa'),
-      onContinueGame: () => this.continueGame(),
-      onSelectChapter: (chapterId: string) => this.startChapter(chapterId),
-      onQualityChange: (quality: QualityLevel) => this.graphicsManager.setQuality(quality),
-      onAudioSettingsChange: (settings: Partial<AudioSettings>) => this.audioManager.updateSettings(settings),
-    });
+    this.uiManager = new UIManager();
+
+    // Bind UI buttons
+    document.getElementById("new-game-btn")?.addEventListener("click", () => this.startChapter('medusa'));
+    document.getElementById("continue-btn")?.addEventListener("click", () => this.continueGame());
 
     // Cargar opciones guardadas
     const savedSettings = this.saveSystem.getSettings();

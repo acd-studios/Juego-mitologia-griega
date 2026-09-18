@@ -1,278 +1,245 @@
-import { DialogueTree, DialogueSystem, DialogueNode } from '../dialogue/DialogueSystem';
-import { QualityLevel } from '../graphics/GraphicsQualityManager';
-import { AudioSettings } from '../audio/AudioManager';
-import { ALL_MYTH_CHAPTERS } from '../mythology/MythRegistry';
-
-export interface UIManagerCallbacks {
-  onStartNewGame: () => void;
-  onContinueGame: () => void;
-  onSelectChapter: (chapterId: string) => void;
-  onQualityChange: (quality: QualityLevel) => void;
-  onAudioSettingsChange: (settings: Partial<AudioSettings>) => void;
-}
+import { JournalSystem, Clue, CharacterProfile } from "../investigation/JournalSystem";
+import { DialogueSystem, DialogueTree, DialogueNode, DialogueChoice } from "../dialogue/DialogueSystem";
 
 export class UIManager {
-  private callbacks: UIManagerCallbacks;
+  private mainMenuEl!: HTMLElement;
+  private hudEl!: HTMLElement;
+  private dialogueOverlayEl!: HTMLElement;
+  private journalOverlayEl!: HTMLElement;
+  private pauseMenuEl!: HTMLElement;
+  private optionsMenuEl!: HTMLElement;
+  private loadingScreenEl!: HTMLElement;
 
-  // Elementos HTML
-  private mainMenuEl: HTMLElement;
-  private mythSelectionEl: HTMLElement;
-  private optionsEl: HTMLElement;
-  private controlsEl: HTMLElement;
-  private loadingEl: HTMLElement;
-  private dialogueOverlayEl: HTMLElement;
-  private journalOverlayEl: HTMLElement;
-  private pauseMenuEl: HTMLElement;
-  private resolutionEl: HTMLElement;
-  private interactionPromptEl: HTMLElement;
-  private toastEl: HTMLElement;
-  private reticleEl: HTMLElement;
-  private subtitleBoxEl: HTMLElement;
+  private currentJournalSystem: JournalSystem | null = null;
+  private isJournalOpen: boolean = false;
 
-  constructor(callbacks: UIManagerCallbacks) {
-    this.callbacks = callbacks;
+  constructor() {
+    this.cacheElements();
+    this.setupGlobalEvents();
+  }
 
+  private cacheElements(): void {
     this.mainMenuEl = document.getElementById("main-menu")!;
-    this.mythSelectionEl = document.getElementById("myth-selection-screen")!;
-    this.optionsEl = document.getElementById("options-screen")!;
-    this.controlsEl = document.getElementById("controls-screen")!;
-    this.loadingEl = document.getElementById("loading-screen")!;
+    this.hudEl = document.getElementById("hud")!;
     this.dialogueOverlayEl = document.getElementById("dialogue-overlay")!;
     this.journalOverlayEl = document.getElementById("journal-overlay")!;
     this.pauseMenuEl = document.getElementById("pause-menu")!;
-    this.resolutionEl = document.getElementById("resolution-screen")!;
-    this.interactionPromptEl = document.getElementById("interaction-prompt")!;
-    this.toastEl = document.getElementById("notification-toast")!;
-    this.reticleEl = document.getElementById("reticle")!;
-    this.subtitleBoxEl = document.getElementById("subtitle-box")!;
-
-    this.setupMenuNavigation();
-    this.setupOptionsMenu();
-    this.populateMythChapters();
+    this.optionsMenuEl = document.getElementById("options-menu")!;
+    this.loadingScreenEl = document.getElementById("loading-screen")!;
   }
 
-  private setupMenuNavigation(): void {
-    document.getElementById("btn-new-game")?.addEventListener("click", () => {
-      this.callbacks.onStartNewGame();
-    });
-
-    document.getElementById("btn-continue")?.addEventListener("click", () => {
-      this.callbacks.onContinueGame();
-    });
-
-    document.getElementById("btn-select-myth")?.addEventListener("click", () => {
-      this.showScreen(this.mythSelectionEl);
-    });
-
-    document.getElementById("btn-options")?.addEventListener("click", () => {
-      this.showScreen(this.optionsEl);
-    });
-
-    document.getElementById("btn-controls")?.addEventListener("click", () => {
-      this.showScreen(this.controlsEl);
-    });
-
-    document.getElementById("btn-back-myth-selection")?.addEventListener("click", () => {
-      this.showScreen(this.mainMenuEl);
-    });
-
-    document.getElementById("btn-back-options")?.addEventListener("click", () => {
-      this.showScreen(this.mainMenuEl);
-    });
-
-    document.getElementById("btn-back-controls")?.addEventListener("click", () => {
-      this.showScreen(this.mainMenuEl);
-    });
-
-    document.getElementById("btn-res-continue")?.addEventListener("click", () => {
-      this.hideScreen(this.resolutionEl);
-      this.showMainMenu();
-    });
-  }
-
-  private populateMythChapters(): void {
-    const container = document.getElementById("chapters-container");
-    if (!container) return;
-    container.innerHTML = "";
-
-    ALL_MYTH_CHAPTERS.forEach((ch, idx) => {
-      const card = document.createElement("div");
-      card.className = `chapter-card ${ch.unlockedByDefault ? '' : 'locked'}`;
-      card.innerHTML = `
-        <span class="chapter-tag">CAPÍTULO 0${idx + 1}</span>
-        <h3 class="chapter-title">${ch.title}</h3>
-        <p class="chapter-desc">${ch.description}</p>
-        <button class="menu-btn ${ch.unlockedByDefault ? 'highlight' : ''}" ${ch.unlockedByDefault ? '' : 'disabled'}>
-          <span class="btn-text">${ch.unlockedByDefault ? 'EXPLORAR MITO' : 'BLOQUEADO'}</span>
-        </button>
-      `;
-
-      if (ch.unlockedByDefault) {
-        card.querySelector("button")?.addEventListener("click", () => {
-          this.callbacks.onSelectChapter(ch.id);
-        });
+  private setupGlobalEvents(): void {
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "KeyJ" || e.code === "Tab") {
+        e.preventDefault();
+        this.toggleJournal();
       }
-
-      container.appendChild(card);
     });
+
+    const closeJournalBtn = document.getElementById("close-journal-btn");
+    if (closeJournalBtn) {
+      closeJournalBtn.addEventListener("click", () => {
+        this.hideJournal();
+      });
+    }
   }
 
-  private setupOptionsMenu(): void {
-    const qualityBtns = document.querySelectorAll(".quality-btn");
-    qualityBtns.forEach((btn) => {
-      btn.addEventListener("click", (evt) => {
-        qualityBtns.forEach((b) => b.classList.remove("active"));
-        const target = evt.currentTarget as HTMLElement;
-        target.classList.add("active");
-        const q = target.getAttribute("data-quality") as QualityLevel;
-        if (q) this.callbacks.onQualityChange(q);
-      });
+  public setJournalSystem(journal: JournalSystem): void {
+    this.currentJournalSystem = journal;
+  }
+
+  public toggleJournal(): void {
+    if (this.isJournalOpen) {
+      this.hideJournal();
+    } else {
+      this.showJournal();
+    }
+  }
+
+  public showJournal(): void {
+    this.isJournalOpen = true;
+    this.journalOverlayEl.classList.remove("hidden");
+    this.populateJournalContent();
+  }
+
+  public hideJournal(): void {
+    this.isJournalOpen = false;
+    this.journalOverlayEl.classList.add("hidden");
+  }
+
+  private populateJournalContent(): void {
+    const listEl = document.getElementById("clues-list");
+    if (!listEl || !this.currentJournalSystem) return;
+
+    listEl.innerHTML = "";
+    const clues = this.currentJournalSystem.getClues();
+
+    if (clues.length === 0) {
+      listEl.innerHTML = `<p class="empty-msg">No has descubierto pistas aún. Explora el templo y examina los objetos.</p>`;
+      return;
+    }
+
+    clues.forEach((clue) => {
+      const card = document.createElement("div");
+      card.className = "clue-card";
+      card.innerHTML = `
+        <h4>${clue.title}</h4>
+        <span class="clue-type">${clue.type}</span>
+        <p>${clue.description}</p>
+        <small>📍 Ubicación: ${clue.locationFound}</small>
+        ${clue.mythVsFact ? `<div class="myth-fact"><b>Mito:</b> ${clue.mythVsFact.mythicElement}<br/><b>Realidad:</b> ${clue.mythVsFact.historicalElement}</div>` : ""}
+      `;
+      listEl.appendChild(card);
     });
   }
 
   public showMainMenu(): void {
-    this.hideAllScreens();
     this.mainMenuEl.classList.remove("hidden");
-    this.mainMenuEl.classList.add("active");
   }
 
   public hideMainMenu(): void {
     this.mainMenuEl.classList.add("hidden");
   }
 
-  public toggleContinueButton(enabled: boolean): void {
-    const btn = document.getElementById("btn-continue") as HTMLButtonElement;
-    if (btn) {
-      btn.disabled = !enabled;
-      if (enabled) btn.classList.remove("disabled");
-      else btn.classList.add("disabled");
+  public toggleContinueButton(hasSave: boolean): void {
+    const continueBtn = document.getElementById("continue-btn");
+    if (continueBtn) {
+      if (hasSave) {
+        continueBtn.removeAttribute("disabled");
+      } else {
+        continueBtn.setAttribute("disabled", "true");
+      }
     }
   }
 
-  public showLoadingScreen(title: string, quote?: string): void {
-    this.loadingEl.classList.remove("hidden");
-    const tEl = document.getElementById("loading-title");
-    const qEl = document.getElementById("loading-subtitle");
-    if (tEl) tEl.innerText = title;
-    if (qEl && quote) qEl.innerText = `"${quote}"`;
-  }
-
-  public updateLoadingProgress(percentage: number): void {
-    const pBar = document.getElementById("loading-progress");
-    if (pBar) pBar.style.width = `${percentage}%`;
-  }
-
-  public hideLoadingScreen(): void {
-    this.loadingEl.classList.add("hidden");
-  }
-
   public showHUD(): void {
-    this.reticleEl.classList.remove("hidden");
+    this.hudEl.classList.remove("hidden");
   }
 
   public hideHUD(): void {
-    this.reticleEl.classList.add("hidden");
-    this.hideInteractionPrompt();
+    this.hudEl.classList.add("hidden");
   }
 
-  public showInteractionPrompt(action: string, targetName: string): void {
-    this.interactionPromptEl.classList.remove("hidden");
-    const actEl = document.getElementById("prompt-action");
-    const tarEl = document.getElementById("prompt-target");
-    if (actEl) actEl.innerText = action;
-    if (tarEl) tarEl.innerText = targetName;
-    this.reticleEl.classList.add("active");
+  public showLoadingScreen(title: string, subtitle: string): void {
+    const titleEl = document.getElementById("loading-title");
+    const subEl = document.getElementById("loading-subtitle");
+    if (titleEl) titleEl.innerText = title;
+    if (subEl) subEl.innerText = subtitle;
+    this.loadingScreenEl.classList.remove("hidden");
+  }
+
+  public updateLoadingProgress(percent: number): void {
+    const fillEl = document.getElementById("loading-fill");
+    if (fillEl) fillEl.style.width = `${percent}%`;
+  }
+
+  public hideLoadingScreen(): void {
+    this.loadingScreenEl.classList.add("hidden");
+  }
+
+  public showInteractionPrompt(actionText: string, objectName: string): void {
+    const promptEl = document.getElementById("interaction-prompt");
+    if (promptEl) {
+      promptEl.innerHTML = `<span class="key-badge">E</span> <span class="action">${actionText}</span> - <span class="name">${objectName}</span>`;
+      promptEl.classList.remove("hidden");
+    }
   }
 
   public hideInteractionPrompt(): void {
-    this.interactionPromptEl.classList.add("hidden");
-    this.reticleEl.classList.remove("active");
+    const promptEl = document.getElementById("interaction-prompt");
+    if (promptEl) promptEl.classList.add("hidden");
   }
 
   public showNotification(title: string, message: string): void {
-    this.toastEl.classList.remove("hidden");
-    const tMsg = document.getElementById("toast-msg");
-    if (tMsg) tMsg.innerText = message;
+    const notifContainer = document.getElementById("notification-container");
+    if (!notifContainer) return;
 
+    const notif = document.createElement("div");
+    notif.className = "notification-toast";
+    notif.innerHTML = `<strong>${title}</strong><p>${message}</p>`;
+
+    notifContainer.appendChild(notif);
     setTimeout(() => {
-      this.toastEl.classList.add("hidden");
-    }, 4000);
-  }
-
-  public showSubtitle(text: string, durationMs: number = 5000): void {
-    this.subtitleBoxEl.classList.remove("hidden");
-    const subTxt = document.getElementById("subtitle-text");
-    if (subTxt) subTxt.innerText = text;
-
-    setTimeout(() => {
-      this.subtitleBoxEl.classList.add("hidden");
-    }, durationMs);
+      notif.classList.add("fade-out");
+      setTimeout(() => notif.remove(), 500);
+    }, 3500);
   }
 
   public showDialogueOverlay(tree: DialogueTree, dialogueSystem: DialogueSystem): void {
     this.dialogueOverlayEl.classList.remove("hidden");
-    this.hideHUD();
 
-    dialogueSystem.setOnNodeDisplayCallback((node) => {
-      const nameEl = document.getElementById("speaker-name");
-      const titleEl = document.getElementById("speaker-title");
-      const textEl = document.getElementById("dialogue-text");
-      const choicesContainer = document.getElementById("dialogue-choices");
-
-      if (nameEl) nameEl.innerText = node.speakerName;
-      if (titleEl) titleEl.innerText = node.speakerTitle;
-      if (textEl) textEl.innerText = node.text;
-
-      if (choicesContainer) {
-        choicesContainer.innerHTML = "";
-        node.choices.forEach((choice) => {
-          const btn = document.createElement("button");
-          btn.className = "choice-btn";
-          btn.innerText = "► " + choice.text;
-          btn.addEventListener("click", () => {
-            dialogueSystem.selectChoice(choice);
-          });
-          choicesContainer.appendChild(btn);
-        });
-      }
+    dialogueSystem.setOnNodeDisplayCallback((node: DialogueNode) => {
+      this.renderDialogueNode(node, dialogueSystem);
     });
 
     dialogueSystem.setOnDialogueEndCallback(() => {
-      this.dialogueOverlayEl.classList.add("hidden");
-      this.showHUD();
+      this.hideDialogueOverlay();
     });
 
     dialogueSystem.startDialogue(tree);
   }
 
-  public showResolutionScreen(title: string, cluesCount: number, totalClues: number, puzzlesSolved: number): void {
-    this.hideHUD();
-    this.resolutionEl.classList.remove("hidden");
+  public renderDialogueNode(node: DialogueNode, dialogueSystem: DialogueSystem): void {
+    const speakerNameEl = document.getElementById("speaker-name");
+    const speakerTitleEl = document.getElementById("speaker-title");
+    const dialogueTextEl = document.getElementById("dialogue-text");
+    const choicesListEl = document.getElementById("choices-list");
 
-    const titleEl = document.getElementById("res-chapter-title");
-    const cluesEl = document.getElementById("res-clues-count");
-    const puzzlesEl = document.getElementById("res-puzzles-count");
+    if (speakerNameEl) speakerNameEl.innerText = node.speakerName;
+    if (speakerTitleEl) speakerTitleEl.innerText = node.speakerTitle || "";
+    if (dialogueTextEl) dialogueTextEl.innerText = node.text;
 
-    if (titleEl) titleEl.innerText = title;
-    if (cluesEl) cluesEl.innerText = `${cluesCount}/${totalClues}`;
-    if (puzzlesEl) puzzlesEl.innerText = `${puzzlesSolved}/3`;
+    if (choicesListEl) {
+      choicesListEl.innerHTML = "";
+      node.choices.forEach((choice: DialogueChoice) => {
+        const btn = document.createElement("button");
+        btn.className = "choice-btn";
+        btn.innerText = choice.text;
+        btn.addEventListener("click", () => {
+          dialogueSystem.selectChoice(choice);
+        });
+        choicesListEl.appendChild(btn);
+      });
+    }
   }
 
-  private showScreen(screenEl: HTMLElement): void {
-    this.hideAllScreens();
-    screenEl.classList.remove("hidden");
+  public hideDialogueOverlay(): void {
+    this.dialogueOverlayEl.classList.add("hidden");
   }
 
-  private hideScreen(screenEl: HTMLElement): void {
-    screenEl.classList.add("hidden");
+  public showSubtitle(text: string): void {
+    const subContainer = document.getElementById("subtitle-container");
+    if (subContainer) {
+      subContainer.innerText = text;
+      subContainer.classList.remove("hidden");
+      setTimeout(() => {
+        subContainer.classList.add("hidden");
+      }, 5000);
+    }
   }
 
-  private hideAllScreens(): void {
-    this.mainMenuEl.classList.add("hidden");
-    this.mythSelectionEl.classList.add("hidden");
-    this.optionsEl.classList.add("hidden");
-    this.controlsEl.classList.add("hidden");
-    this.pauseMenuEl.classList.add("hidden");
-    this.resolutionEl.classList.add("hidden");
+  public showResolutionScreen(chapterName: string, cluesFound: number, totalClues: number, decisionsMade: number): void {
+    const resEl = document.getElementById("resolution-screen");
+    if (!resEl) return;
+
+    resEl.innerHTML = `
+      <div class="resolution-content">
+        <h2>CAPÍTULO RESUELTO</h2>
+        <h3>${chapterName}</h3>
+        <div class="stats">
+          <p>🔍 Pistas Descubiertas: ${cluesFound} / ${totalClues}</p>
+          <p>⚖️ Decisiones Tomadas: ${decisionsMade}</p>
+          <p>📜 Misterio Desvelado: El mito de Medusa reflejado en el bronce bendecido de Atenea.</p>
+        </div>
+        <button id="finish-chapter-btn" class="menu-btn primary">VOLVER AL MENÚ PRINCIPAL</button>
+      </div>
+    `;
+    resEl.classList.remove("hidden");
+
+    document.getElementById("finish-chapter-btn")?.addEventListener("click", () => {
+      resEl.classList.add("hidden");
+      this.hideHUD();
+      this.showMainMenu();
+    });
   }
 }

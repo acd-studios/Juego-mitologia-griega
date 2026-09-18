@@ -13,7 +13,8 @@ import {
   Mesh,
   TransformNode,
   ShadowGenerator,
-  ParticleSystem
+  ParticleSystem,
+  DynamicTexture
 } from '@babylonjs/core';
 import { EngineManager } from '../core/EngineManager';
 import { UIManager } from '../ui/UIManager';
@@ -29,6 +30,7 @@ import { DialogueSystem, DialogueTree, DialogueNode } from '../dialogue/Dialogue
 import { CustomShaderManager } from '../shaders/CustomShaderManager';
 import { LightMirrorPuzzle } from '../puzzles/LightMirrorPuzzle';
 import { SacredSymbolPuzzle, SymbolDial } from '../puzzles/SacredSymbolPuzzle';
+import { ProceduralTextureGenerator } from '../graphics/ProceduralTextures';
 
 export class MedusaChapter extends MythChapter {
   private player!: PlayerController;
@@ -48,6 +50,10 @@ export class MedusaChapter extends MythChapter {
 
   private isMedusaDefeated: boolean = false;
   private playerHasShield: boolean = false;
+
+  private stoneNormalMap!: Texture;
+  private marbleTexture!: Texture;
+  private mossRoughnessMap!: Texture;
 
   constructor(
     engineManager: EngineManager,
@@ -69,21 +75,26 @@ export class MedusaChapter extends MythChapter {
   public async load(onProgress: (progress: number) => void): Promise<void> {
     onProgress(10);
     this.scene = new Scene(this.engineManager.getEngine());
-    this.scene.clearColor = new Color4(0.04, 0.06, 0.09, 1.0);
+    this.scene.clearColor = new Color4(0.03, 0.05, 0.08, 1.0);
     this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = 0.015;
-    this.scene.fogColor = new Color3(0.06, 0.08, 0.12);
+    this.scene.fogDensity = 0.014;
+    this.scene.fogColor = new Color3(0.05, 0.08, 0.12);
 
     this.engineManager.setScene(this.scene);
     onProgress(20);
+
+    // Procedural Normal & Roughness Maps
+    this.stoneNormalMap = ProceduralTextureGenerator.createStoneNormalMap("stoneNorm", this.scene, 512, 1.2);
+    this.marbleTexture = ProceduralTextureGenerator.createMarbleTexture("marbleTex", this.scene, 512);
+    this.mossRoughnessMap = ProceduralTextureGenerator.createMossRoughnessMap("mossRough", this.scene, 256);
 
     // Configurar Sistemas Narrative & Audio
     this.journalSystem = new JournalSystem();
     this.dialogueSystem = new DialogueSystem();
     this.setupJournalNotifications();
 
-    // Configurar Jugador, Cámara e Interacción PRIMERO
-    this.player = new PlayerController(this.scene, new Vector3(0, 1.2, -18));
+    // Configurar Jugador, Cámara e Interacción
+    this.player = new PlayerController(this.scene, new Vector3(0, 1.2, -22));
     this.cameraManager = new CameraManager(this.scene, this.engineManager.getCanvas());
     this.cameraManager.followTarget(this.player.getMesh());
 
@@ -102,14 +113,15 @@ export class MedusaChapter extends MythChapter {
 
     onProgress(40);
 
-    // Iluminación
+    // Iluminación Cinematográfica
     this.setupLighting();
     onProgress(60);
 
-    // Construir Escenario 3D PBR (Isla, Templo Griego, Santuario, Cueva)
+    // Construcción de Escenario 3D Altamente Detallado & Currado
     this.buildIslandEnvironment();
     this.buildTempleAndSanctuary();
     this.buildPetrifiedStatues();
+    this.buildEnvironmentDebrisAndTrees();
     onProgress(80);
 
     // Puzzles & Pistas
@@ -140,138 +152,260 @@ export class MedusaChapter extends MythChapter {
 
   private setupLighting(): void {
     const hemiLight = new HemisphericLight("hemiLight", new Vector3(0, 1, 0), this.scene);
-    hemiLight.intensity = 0.4;
-    hemiLight.diffuse = new Color3(0.6, 0.7, 0.85);
-    hemiLight.groundColor = new Color3(0.1, 0.12, 0.15);
+    hemiLight.intensity = 0.35;
+    hemiLight.diffuse = new Color3(0.55, 0.65, 0.82);
+    hemiLight.groundColor = new Color3(0.08, 0.1, 0.14);
 
-    const dirLight = new DirectionalLight("moonLight", new Vector3(-0.5, -0.8, 0.5), this.scene);
-    dirLight.position = new Vector3(20, 40, -20);
-    dirLight.intensity = 0.7;
-    dirLight.diffuse = new Color3(0.8, 0.85, 1.0);
+    const dirLight = new DirectionalLight("moonLight", new Vector3(-0.6, -0.7, 0.4), this.scene);
+    dirLight.position = new Vector3(25, 45, -25);
+    dirLight.intensity = 0.8;
+    dirLight.diffuse = new Color3(0.75, 0.85, 1.0);
 
     this.graphicsManager.createShadowGenerator(dirLight);
 
-    // Antorchas / Braseros con PointLights cálidos
-    this.createBrazierLight(new Vector3(-6, 2, 2));
-    this.createBrazierLight(new Vector3(6, 2, 2));
-    this.createBrazierLight(new Vector3(-6, 2, 14));
-    this.createBrazierLight(new Vector3(6, 2, 14));
+    // Braseros sagrados de bronce con llama cálida
+    this.createBrazierLight(new Vector3(-7, 2.2, 2));
+    this.createBrazierLight(new Vector3(7, 2.2, 2));
+    this.createBrazierLight(new Vector3(-7, 2.2, 16));
+    this.createBrazierLight(new Vector3(7, 2.2, 16));
+    this.createBrazierLight(new Vector3(0, 3.2, 21));
   }
 
   private createBrazierLight(pos: Vector3): void {
-    const light = new PointLight("brazierLight", pos, this.scene);
-    light.diffuse = new Color3(1.0, 0.6, 0.2);
-    light.intensity = 1.5;
-    light.range = 10;
+    // Pedestal de bronce tallado
+    const pedestal = MeshBuilder.CreateCylinder("brazierPedestal", { height: 1.2, diameterTop: 0.7, diameterBottom: 0.9, tessellation: 12 }, this.scene);
+    pedestal.position = new Vector3(pos.x, pos.y - 0.6, pos.z);
+    const bronzeMat = new PBRMaterial("bronzeMat", this.scene);
+    bronzeMat.albedoColor = new Color3(0.3, 0.22, 0.14);
+    bronzeMat.metallic = 0.8;
+    bronzeMat.roughness = 0.35;
+    pedestal.material = bronzeMat;
 
-    // Partículas de Fuego / Polvo
-    const ps = new ParticleSystem("fireParticles", 100, this.scene);
-    ps.particleTexture = new Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/packages/tools/playground/public/textures/flare.png", this.scene);
+    const bowl = MeshBuilder.CreateCylinder("brazierBowl", { height: 0.4, diameterTop: 1.1, diameterBottom: 0.3 }, this.scene);
+    bowl.position = new Vector3(pos.x, pos.y, pos.z);
+    bowl.material = bronzeMat;
+
+    const light = new PointLight("brazierLight", pos, this.scene);
+    light.diffuse = new Color3(1.0, 0.55, 0.15);
+    light.intensity = 1.8;
+    light.range = 12;
+
+    // Partículas procedurales de fuego
+    const ps = new ParticleSystem("fireParticles", 120, this.scene);
+    ps.particleTexture = ProceduralTextureGenerator.createMossRoughnessMap("fireTex", this.scene, 128);
     ps.emitter = pos;
-    ps.minEmitBox = new Vector3(-0.1, 0, -0.1);
-    ps.maxEmitBox = new Vector3(0.1, 0.2, 0.1);
-    ps.color1 = new Color4(1.0, 0.5, 0.1, 1.0);
-    ps.color2 = new Color4(1.0, 0.2, 0.0, 1.0);
-    ps.minSize = 0.1;
-    ps.maxSize = 0.3;
-    ps.minLifeTime = 0.2;
-    ps.maxLifeTime = 0.6;
-    ps.emitRate = 40;
+    ps.minEmitBox = new Vector3(-0.15, 0.1, -0.15);
+    ps.maxEmitBox = new Vector3(0.15, 0.3, 0.15);
+    ps.color1 = new Color4(1.0, 0.6, 0.1, 0.9);
+    ps.color2 = new Color4(0.9, 0.2, 0.05, 0.2);
+    ps.minSize = 0.15;
+    ps.maxSize = 0.45;
+    ps.minLifeTime = 0.3;
+    ps.maxLifeTime = 0.8;
+    ps.emitRate = 45;
+    ps.gravity = new Vector3(0, 2, 0);
     ps.start();
   }
 
   private buildIslandEnvironment(): void {
-    // Terreno Costero
-    const islandTerrain = MeshBuilder.CreateGround("terrain", { width: 100, height: 100, subdivisions: 30 }, this.scene);
-    islandTerrain.position.y = 0;
+    // Terreno irregular costero con relieve
+    const islandTerrain = MeshBuilder.CreateGroundFromHeightMap(
+      "terrain",
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64'><rect width='64' height='64' fill='black'/><circle cx='32' cy='32' r='28' fill='white'/></svg>",
+      { width: 110, height: 110, subdivisions: 40, minHeight: -1, maxHeight: 4 },
+      this.scene
+    );
+    islandTerrain.position.y = -0.5;
     islandTerrain.checkCollisions = true;
 
     const groundMat = new PBRMaterial("groundMat", this.scene);
-    groundMat.albedoColor = new Color3(0.18, 0.2, 0.18);
+    groundMat.albedoColor = new Color3(0.16, 0.18, 0.16);
+    groundMat.bumpTexture = this.stoneNormalMap;
+    groundMat.useParallax = true;
+    groundMat.parallaxScaleBias = 0.02;
     groundMat.roughness = 0.85;
     islandTerrain.material = groundMat;
 
-    // Agua mística marina con Shader
-    const waterMesh = MeshBuilder.CreateGround("seaWater", { width: 140, height: 140 }, this.scene);
-    waterMesh.position.y = -0.2;
+    // Arrecifes y rocas costeras irregulares
+    for (let i = 0; i < 24; i++) {
+      const angle = (i / 24) * Math.PI * 2;
+      const dist = 38 + Math.random() * 8;
+      const rock = MeshBuilder.CreatePolyhedron("cliffRock_" + i, { type: 2, size: 2.5 + Math.random() * 3.5 }, this.scene);
+      rock.position = new Vector3(Math.cos(angle) * dist, Math.random() * 2, Math.sin(angle) * dist);
+      rock.rotation = new Vector3(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      rock.scaling = new Vector3(1 + Math.random(), 0.8 + Math.random() * 1.5, 1 + Math.random());
+
+      const rockMat = new PBRMaterial("rockMat_" + i, this.scene);
+      rockMat.albedoColor = new Color3(0.2, 0.22, 0.24);
+      rockMat.bumpTexture = this.stoneNormalMap;
+      rockMat.roughness = 0.9;
+      rock.material = rockMat;
+      rock.checkCollisions = true;
+    }
+
+    // Agua marina con Shader místico
+    const waterMesh = MeshBuilder.CreateGround("seaWater", { width: 160, height: 160 }, this.scene);
+    waterMesh.position.y = -0.6;
     waterMesh.material = CustomShaderManager.createAncientWaterMaterial(this.scene);
   }
 
   private buildTempleAndSanctuary(): void {
     const templeMat = new PBRMaterial("templeMat", this.scene);
-    templeMat.albedoColor = new Color3(0.85, 0.82, 0.78);
-    templeMat.roughness = 0.3; // Mármol pulido antiguo
+    templeMat.albedoTexture = this.marbleTexture;
+    templeMat.bumpTexture = this.stoneNormalMap;
+    templeMat.roughness = 0.35;
+    templeMat.metallic = 0.05;
 
-    // Estructura principal del Templo de Atenea
-    const base = MeshBuilder.CreateBox("templeBase", { width: 18, height: 1.2, depth: 26 }, this.scene);
-    base.position = new Vector3(0, 0.6, 8);
+    // Escalinata de entrada al Templo de Atenea
+    for (let step = 0; step < 4; step++) {
+      const stair = MeshBuilder.CreateBox("stair_" + step, { width: 19 - step * 0.5, height: 0.35, depth: 1.8 }, this.scene);
+      stair.position = new Vector3(0, step * 0.35, -4 - step * 1.2);
+      stair.material = templeMat;
+      stair.checkCollisions = true;
+    }
+
+    // Base Estilóbato del Templo
+    const base = MeshBuilder.CreateBox("templeBase", { width: 18, height: 1.2, depth: 28 }, this.scene);
+    base.position = new Vector3(0, 1.2, 9);
     base.material = templeMat;
     base.checkCollisions = true;
 
-    // Columnas Dóricas en PBR
-    for (let x = -7; x <= 7; x += 14) {
-      for (let z = -2; z <= 18; z += 4) {
-        const column = MeshBuilder.CreateCylinder("col_" + x + "_" + z, { height: 6, diameter: 0.9 }, this.scene);
-        column.position = new Vector3(x, 4.2, z);
-        column.material = templeMat;
-        column.checkCollisions = true;
+    // Columnas Dóricas acanaladas con capiteles y plintos
+    for (let x = -7.5; x <= 7.5; x += 15) {
+      for (let z = -2; z <= 20; z += 4.4) {
+        const isBroken = (x === 7.5 && z === 11.2); // Columna derrumbada por el tiempo
+
+        if (isBroken) {
+          // Fragmentos de columna caídos en el suelo
+          const fallenCol1 = MeshBuilder.CreateCylinder("brokenCol1", { height: 3, diameter: 1.0, tessellation: 16 }, this.scene);
+          fallenCol1.position = new Vector3(x - 1, 2.0, z);
+          fallenCol1.rotation = new Vector3(Math.PI / 2, 0.4, 0.2);
+          fallenCol1.material = templeMat;
+
+          const fallenCol2 = MeshBuilder.CreateCylinder("brokenCol2", { height: 2.5, diameter: 0.95, tessellation: 16 }, this.scene);
+          fallenCol2.position = new Vector3(x - 2.5, 1.8, z + 1.5);
+          fallenCol2.rotation = new Vector3(1.2, 0.8, -0.4);
+          fallenCol2.material = templeMat;
+          continue;
+        }
+
+        const colGroup = new TransformNode("colGroup_" + x + "_" + z, this.scene);
+
+        // Plinto base
+        const plinth = MeshBuilder.CreateBox("plinth", { width: 1.2, height: 0.4, depth: 1.2 }, this.scene);
+        plinth.position = new Vector3(x, 2.0, z);
+        plinth.material = templeMat;
+        plinth.parent = colGroup;
+
+        // Fuste acanalado
+        const shaft = MeshBuilder.CreateCylinder("shaft", { height: 6.2, diameterTop: 0.85, diameterBottom: 1.0, tessellation: 16 }, this.scene);
+        shaft.position = new Vector3(x, 5.3, z);
+        shaft.material = templeMat;
+        shaft.checkCollisions = true;
+        shaft.parent = colGroup;
+
+        // Capitel dórico
+        const capital = MeshBuilder.CreateBox("capital", { width: 1.35, height: 0.5, depth: 1.35 }, this.scene);
+        capital.position = new Vector3(x, 8.5, z);
+        capital.material = templeMat;
+        capital.parent = colGroup;
       }
     }
 
-    // Puerta del Santuario Interior (Mecanismo Antiguo)
-    this.sanctuaryDoorMesh = MeshBuilder.CreateBox("sanctuaryDoor", { width: 4, height: 5, depth: 0.6 }, this.scene);
-    this.sanctuaryDoorMesh.position = new Vector3(0, 3.7, 18);
+    // Arquitrabe y Friso superior
+    const architrave = MeshBuilder.CreateBox("architrave", { width: 18.5, height: 1.2, depth: 28.5 }, this.scene);
+    architrave.position = new Vector3(0, 9.2, 9);
+    architrave.material = templeMat;
+
+    // Puerta del Santuario Interior (Mecanismo Antiguo de Madera y Bronce)
+    this.sanctuaryDoorMesh = MeshBuilder.CreateBox("sanctuaryDoor", { width: 4.8, height: 5.5, depth: 0.7 }, this.scene);
+    this.sanctuaryDoorMesh.position = new Vector3(0, 4.2, 19.5);
     const doorMat = new PBRMaterial("doorMat", this.scene);
-    doorMat.albedoColor = new Color3(0.3, 0.22, 0.15);
+    doorMat.albedoColor = new Color3(0.25, 0.18, 0.12);
+    doorMat.bumpTexture = this.stoneNormalMap;
     doorMat.roughness = 0.7;
+    doorMat.metallic = 0.2;
     this.sanctuaryDoorMesh.material = doorMat;
     this.sanctuaryDoorMesh.checkCollisions = true;
 
-    // Estatua de Atenea en el Santuario Interior
-    this.athenaStatueMesh = MeshBuilder.CreateBox("athenaStatue", { width: 1.2, height: 3.5, depth: 1.2 }, this.scene);
-    this.athenaStatueMesh.position = new Vector3(0, 3.0, 22);
+    // Estatua Monumental de Atenea con Lanza y Casco Helénico
+    const statueGroup = new TransformNode("athenaStatueGroup", this.scene);
+
+    const pedestal = MeshBuilder.CreateBox("athenaPedestal", { width: 2.2, height: 1.2, depth: 2.2 }, this.scene);
+    pedestal.position = new Vector3(0, 2.4, 23.5);
+    pedestal.material = templeMat;
+    pedestal.parent = statueGroup;
+
+    this.athenaStatueMesh = MeshBuilder.CreateCylinder("athenaBody", { height: 3.6, diameterTop: 0.9, diameterBottom: 1.2 }, this.scene);
+    this.athenaStatueMesh.position = new Vector3(0, 4.8, 23.5);
     const goldMat = new PBRMaterial("goldMat", this.scene);
-    goldMat.albedoColor = new Color3(0.9, 0.75, 0.2);
-    goldMat.metallic = 0.9;
-    goldMat.roughness = 0.2;
+    goldMat.albedoColor = new Color3(0.88, 0.72, 0.25);
+    goldMat.metallic = 0.85;
+    goldMat.roughness = 0.25;
     this.athenaStatueMesh.material = goldMat;
+    this.athenaStatueMesh.parent = statueGroup;
+
+    // Lanza de la Diosa
+    const spear = MeshBuilder.CreateCylinder("athenaSpear", { height: 5.5, diameter: 0.1 }, this.scene);
+    spear.position = new Vector3(0.8, 5.0, 23.2);
+    spear.rotation.z = -0.15;
+    spear.material = goldMat;
+    spear.parent = statueGroup;
   }
 
   private buildPetrifiedStatues(): void {
     const stoneMat = new PBRMaterial("petrifiedMat", this.scene);
-    stoneMat.albedoColor = new Color3(0.4, 0.42, 0.45);
-    stoneMat.roughness = 0.9;
+    stoneMat.albedoColor = new Color3(0.38, 0.4, 0.42);
+    stoneMat.bumpTexture = this.stoneNormalMap;
+    stoneMat.roughness = 0.92;
 
-    // Estatuas de exploradores petrificados en poses dramáticas
-    const statuePositions = [
-      new Vector3(-3, 1.8, 1),
-      new Vector3(4, 1.8, 6),
-      new Vector3(-2, 1.8, 12)
+    // Poses dramáticas de exploradores petrificados
+    const statueConfigs = [
+      { pos: new Vector3(-3.5, 2.2, 1), rotZ: -0.2, title: "Explorador con Antorcha Caída" },
+      { pos: new Vector3(4.2, 2.2, 7), rotZ: 0.35, title: "Guerrero Intentando Cubrirse" },
+      { pos: new Vector3(-2.2, 2.2, 13), rotZ: 0.1, title: "Erudito Aterrorizado" }
     ];
 
-    statuePositions.forEach((pos, idx) => {
-      const statue = MeshBuilder.CreateCapsule("petrified_human_" + idx, { height: 1.7, radius: 0.35 }, this.scene);
-      statue.position = pos;
-      statue.rotation.z = idx === 1 ? 0.3 : 0;
-      statue.material = stoneMat;
+    statueConfigs.forEach((cfg, idx) => {
+      const statueGroup = new TransformNode("statueGroup_" + idx, this.scene);
+
+      // Torso humano petrificado
+      const torso = MeshBuilder.CreateCapsule("torso_" + idx, { height: 1.4, radius: 0.32 }, this.scene);
+      torso.position = cfg.pos;
+      torso.rotation.z = cfg.rotZ;
+      torso.material = stoneMat;
+      torso.parent = statueGroup;
+
+      // Cabeza inclinada en gesto de horror
+      const head = MeshBuilder.CreateSphere("head_" + idx, { diameter: 0.4 }, this.scene);
+      head.position = new Vector3(cfg.pos.x, cfg.pos.y + 0.85, cfg.pos.z);
+      head.material = stoneMat;
+      head.parent = statueGroup;
+
+      // Brazos alzados en agonía
+      const arm1 = MeshBuilder.CreateCylinder("arm1_" + idx, { height: 0.7, diameter: 0.14 }, this.scene);
+      arm1.position = new Vector3(cfg.pos.x + 0.35, cfg.pos.y + 0.4, cfg.pos.z);
+      arm1.rotation = new Vector3(0.5, 0, -0.8);
+      arm1.material = stoneMat;
+      arm1.parent = statueGroup;
 
       if (this.interactionSystem) {
         this.interactionSystem.registerInteractable({
           id: "statue_" + idx,
-          name: "Estatua de Explorador Petrificado",
+          name: cfg.title,
           actionText: "EXAMINAR HUELLAS DE PIEDRA",
-          mesh: statue,
+          mesh: torso,
           onInteract: () => {
             this.audioManager.playSFX('clue');
             this.journalSystem.registerClue({
               id: "clue_statue_" + idx,
-              title: "Víctima Petrificada #" + (idx + 1),
+              title: cfg.title,
               type: "STATUE",
-              description: "No es una escultura tradicional. Sus facciones muestran verdadero pánico antes de convertirse en piedra instantáneamente.",
-              locationFound: "Pórtico del Templo",
+              description: "No es una escultura tradicional. Las facciones humanas en el rostro de piedra reflejan pavor absoluto antes de quedar petrificado.",
+              locationFound: "Pórtico del Templo de Atenea",
               mythVsFact: {
-                mythicElement: "Se decía que la mirada de Medusa petrificaba instantáneamente.",
-                historicalElement: "Estudios arqueológicos sugieren reacciones químicas desconocidas o mitos para infundir temor."
+                mythicElement: "Se decía que la mirada de Medusa petrificaba instantáneamente a los mortales.",
+                historicalElement: "Los mitos helénicos personificaban fuerzas temibles del mar y volcanes mediante criaturas apotropaicas."
               }
             });
           }
@@ -280,14 +414,56 @@ export class MedusaChapter extends MythChapter {
     });
   }
 
+  private buildEnvironmentDebrisAndTrees(): void {
+    const woodMat = new PBRMaterial("woodMat", this.scene);
+    woodMat.albedoColor = new Color3(0.2, 0.15, 0.1);
+    woodMat.roughness = 0.9;
+
+    const leafMat = new PBRMaterial("leafMat", this.scene);
+    leafMat.albedoColor = new Color3(0.12, 0.22, 0.12);
+    leafMat.roughness = 0.8;
+
+    // Olivos antiguos retorcidos
+    const treePositions = [
+      new Vector3(-12, 0, -10),
+      new Vector3(14, 0, -8),
+      new Vector3(-14, 0, 12),
+      new Vector3(12, 0, 18)
+    ];
+
+    treePositions.forEach((pos, idx) => {
+      const trunk = MeshBuilder.CreateCylinder("trunk_" + idx, { height: 4, diameterTop: 0.6, diameterBottom: 1.1, tessellation: 10 }, this.scene);
+      trunk.position = new Vector3(pos.x, pos.y + 2, pos.z);
+      trunk.rotation = new Vector3(0.1, idx, -0.15);
+      trunk.material = woodMat;
+
+      const foliage = MeshBuilder.CreatePolyhedron("foliage_" + idx, { type: 1, size: 2.2 }, this.scene);
+      foliage.position = new Vector3(pos.x, pos.y + 4.2, pos.z);
+      foliage.material = leafMat;
+    });
+
+    // Ánforas rotas y fragmentos de cerámica dispersos
+    for (let i = 0; i < 8; i++) {
+      const amphora = MeshBuilder.CreateCylinder("amphora_" + i, { height: 0.8, diameterTop: 0.3, diameterBottom: 0.15 }, this.scene);
+      amphora.position = new Vector3(-6 + i * 1.8, 1.4, -2 + (i % 3));
+      amphora.rotation = new Vector3(1.2, i * 0.7, 0.4);
+
+      const clayMat = new PBRMaterial("clayMat_" + i, this.scene);
+      clayMat.albedoColor = new Color3(0.65, 0.35, 0.2);
+      clayMat.roughness = 0.75;
+      amphora.material = clayMat;
+    }
+  }
+
   private setupInteractableCluesAndNPCs(): void {
     if (!this.interactionSystem) return;
 
     // NPC: Erudito Kallisto
     this.survivorNPCMesh = MeshBuilder.CreateCapsule("scholar_npc", { height: 1.75, radius: 0.4 }, this.scene);
-    this.survivorNPCMesh.position = new Vector3(-5, 1.8, -8);
+    this.survivorNPCMesh.position = new Vector3(-6, 1.2, -12);
     const npcMat = new PBRMaterial("npcMat", this.scene);
-    npcMat.albedoColor = new Color3(0.7, 0.5, 0.3);
+    npcMat.albedoColor = new Color3(0.65, 0.48, 0.32);
+    npcMat.roughness = 0.8;
     this.survivorNPCMesh.material = npcMat;
 
     this.interactionSystem.registerInteractable({
@@ -302,12 +478,12 @@ export class MedusaChapter extends MythChapter {
     });
 
     // Pergamino Antiguo Inscripción
-    const scrollMesh = MeshBuilder.CreateBox("ancient_scroll", { width: 0.6, height: 0.1, depth: 0.4 }, this.scene);
-    scrollMesh.position = new Vector3(3, 1.3, -4);
+    const scrollMesh = MeshBuilder.CreateBox("ancient_scroll", { width: 0.7, height: 0.12, depth: 0.45 }, this.scene);
+    scrollMesh.position = new Vector3(3.2, 1.5, -3.5);
 
     this.interactionSystem.registerInteractable({
       id: "obj_scroll",
-      name: "Pergamino de Atenea",
+      name: "Pergamino Sacro de Atenea",
       actionText: "LEER INSCRIPCIÓN",
       mesh: scrollMesh,
       onInteract: () => {
@@ -319,22 +495,22 @@ export class MedusaChapter extends MythChapter {
           description: "Inscripción sacra: 'La Gorgona no puede ser mirada de frente. Solo mediante el reflejo en el bronce bendecido de la diosa la maldición será disipada'.",
           locationFound: "Altar Exterior",
           mythVsFact: {
-            mythicElement: "Perseo utilizó el escudo pulido de Atenea como espejo para no mirar a Medusa.",
-            historicalElement: "En la iconografía griega antigua, el Aegis/Escudo servía de protección apotropaica."
+            mythicElement: "Perseo utilizó el escudo pulido de Atenea como espejo para decapitar a Medusa sin mirarla.",
+            historicalElement: "En la iconografía griega antigua, el Aegis/Escudo servía de protección apotropaica contra el mal."
           }
         });
       }
     });
 
-    // Escudo de Bronce Pulido en el Santuario
-    this.bronzeShieldOfferMesh = MeshBuilder.CreateCylinder("bronzeShield", { height: 0.1, diameter: 1.4 }, this.scene);
-    this.bronzeShieldOfferMesh.position = new Vector3(0, 2.2, 21);
+    // Escudo de Bronce Pulido en el Santuario Interior
+    this.bronzeShieldOfferMesh = MeshBuilder.CreateCylinder("bronzeShield", { height: 0.12, diameter: 1.5, tessellation: 32 }, this.scene);
+    this.bronzeShieldOfferMesh.position = new Vector3(0, 3.2, 22.5);
     this.bronzeShieldOfferMesh.rotation.x = Math.PI / 4;
 
     const shieldMat = new PBRMaterial("shieldMat", this.scene);
-    shieldMat.albedoColor = new Color3(0.9, 0.7, 0.3);
+    shieldMat.albedoColor = new Color3(0.95, 0.78, 0.32);
     shieldMat.metallic = 0.95;
-    shieldMat.roughness = 0.05; // Reflejo tipo espejo
+    shieldMat.roughness = 0.04; // Reflejo tipo espejo perfecto
     this.bronzeShieldOfferMesh.material = shieldMat;
 
     this.interactionSystem.registerInteractable({
@@ -371,10 +547,10 @@ export class MedusaChapter extends MythChapter {
 
     // 1. Light & Mirror Puzzle
     this.mirrorPuzzle = new LightMirrorPuzzle(this.scene);
-    const mirror1 = MeshBuilder.CreateBox("mirror_1", { width: 0.2, height: 2, depth: 1.2 }, this.scene);
-    mirror1.position = new Vector3(-5, 2, 8);
-    const mirror2 = MeshBuilder.CreateBox("mirror_2", { width: 0.2, height: 2, depth: 1.2 }, this.scene);
-    mirror2.position = new Vector3(5, 2, 12);
+    const mirror1 = MeshBuilder.CreateBox("mirror_1", { width: 0.25, height: 2.2, depth: 1.4 }, this.scene);
+    mirror1.position = new Vector3(-5.5, 2.3, 8);
+    const mirror2 = MeshBuilder.CreateBox("mirror_2", { width: 0.25, height: 2.2, depth: 1.4 }, this.scene);
+    mirror2.position = new Vector3(5.5, 2.3, 13);
 
     this.mirrorPuzzle.registerMirror(mirror1, 0);
     this.mirrorPuzzle.registerMirror(mirror2, 90);
@@ -403,7 +579,7 @@ export class MedusaChapter extends MythChapter {
 
     this.mirrorPuzzle.setOnSolveCallback(() => {
       this.audioManager.playSFX('puzzle_solve');
-      this.uiManager.showNotification("Puzzle Resuelto", "El rayo de luz ha alineado los espejos.");
+      this.uiManager.showNotification("Puzzle Resuelto", "El rayo de luz ha alineado los espejos sagrados.");
     });
 
     // 2. Symbol Dial Puzzle para abrir el Santuario
@@ -415,11 +591,11 @@ export class MedusaChapter extends MythChapter {
     this.symbolPuzzle = new SacredSymbolPuzzle(dials, [0, 0]);
     this.symbolPuzzle.setOnSolveCallback(() => {
       this.audioManager.playSFX('puzzle_solve');
-      this.uiManager.showNotification("Santuario Desbloqueado", "Las puertas de piedra del templo se abren.");
+      this.uiManager.showNotification("Santuario Desbloqueado", "Las grandes puertas de piedra del templo se abren.");
 
       // Animar apertura de puerta
       if (this.sanctuaryDoorMesh) {
-        this.sanctuaryDoorMesh.position.y += 4;
+        this.sanctuaryDoorMesh.position.y += 4.5;
       }
     });
 
@@ -498,11 +674,11 @@ export class MedusaChapter extends MythChapter {
     this.audioManager.playSFX('whisper');
 
     // Generar aparición de Medusa con Aura Shader
-    this.medusaMesh = MeshBuilder.CreateCapsule("medusaBoss", { height: 2.2, radius: 0.5 }, this.scene);
-    this.medusaMesh.position = new Vector3(0, 2.2, 12);
+    this.medusaMesh = MeshBuilder.CreateCapsule("medusaBoss", { height: 2.3, radius: 0.55 }, this.scene);
+    this.medusaMesh.position = new Vector3(0, 2.5, 13);
     this.medusaMesh.material = CustomShaderManager.createMedusaAuraMaterial(this.scene);
 
-    this.uiManager.showSubtitle("Medusa ha despertado... ¡Utiliza el Escudo de Bronce!");
+    this.uiManager.showSubtitle("Medusa ha despertado... ¡Utiliza el Escudo Espejo de Bronce!");
 
     // Transición cinematográfica
     this.cameraManager.transitionToCinematic(this.medusaMesh.position, 6.0, Math.PI / 4, Math.PI / 3, 90).then(() => {
