@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mitos de Grecia - Crónicas del Misterio Mitológico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Fauna+One&family=Marcellus&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- Canvas 3D Babylon.js -->
+  <canvas id="renderCanvas" tabindex="0"></canvas>
+
+  <!-- Capa UI Principal -->
+  <div id="ui-container">
+
+    <!-- Retículo del jugador -->
+    <div id="reticle" class="hidden"></div>
+
+    <!-- Indicador Contextual de Interacción -->
+    <div id="interaction-prompt" class="hidden">
+      <div class="prompt-icon"><span id="prompt-key">E</span></div>
+      <div class="prompt-text-container">
+        <span id="prompt-action">INTERACTUAR</span>
+        <span id="prompt-target">Objeto Antiguo</span>
+      </div>
+    </div>
+
+    <!-- Notificación Toast de Pista/Diario -->
+    <div id="notification-toast" class="hidden">
+      <div class="toast-icon">📜</div>
+      <div class="toast-content">
+        <div class="toast-title">Nueva Pista Registrada</div>
+        <div class="toast-message" id="toast-msg">Se ha añadido una nueva entrada al diario.</div>
+      </div>
+    </div>
+
+    <!-- Subtítulos / Mensajes Narrativos -->
+    <div id="subtitle-box" class="hidden">
+      <p id="subtitle-text"></p>
+    </div>
+
+    <!-- Menú Principal -->
+    <div id="main-menu" class="menu-screen active">
+      <div class="menu-overlay"></div>
+      <div class="menu-content">
+        <div class="game-title-container">
+          <span class="subtitle-tag">CRÓNICAS DEL MISTERIO MITOLÓGICO</span>
+          <h1 class="game-title">MITOS DE GRECIA</h1>
+          <div class="title-divider"><span>0</span></div>
+        </div>
+
+        <nav class="menu-nav">
+          <button id="btn-continue" class="menu-btn disabled" disabled>
+            <span class="btn-text">CONTINUAR</span>
+            <span class="btn-sub">Reanudar la investigación guardada</span>
+          </button>
+          <button id="btn-new-game" class="menu-btn highlight">
+            <span class="btn-text">NUEVA PARTIDA</span>
+            <span class="btn-sub">Comenzar desde el primer mito</span>
+          </button>
+          <button id="btn-select-myth" class="menu-btn">
+            <span class="btn-text">SELECCIÓN DE MITO</span>
+            <span class="btn-sub">Explorar capítulos desbloqueados</span>
+          </button>
+          <button id="btn-options" class="menu-btn">
+            <span class="btn-text">OPCIONES</span>
+            <span class="btn-sub">Gráficos, Audio y Rendimiento</span>
+          </button>
+          <button id="btn-controls" class="menu-btn">
+            <span class="btn-text">CONTROLES</span>
+            <span class="btn-sub">Guía de exploración e interacción</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Pantalla de Selección de Capítulo/Mito -->
+    <div id="myth-selection-screen" class="menu-screen hidden">
+      <div class="menu-header">
+        <h2>SELECCIÓN DE CAPÍTULOS</h2>
+        <button class="btn-back" id="btn-back-myth-selection">← VOLVER</button>
+      </div>
+      <div class="chapters-grid" id="chapters-container">
+        <!-- Generado dinámicamente -->
+      </div>
+    </div>
+
+    <!-- Pantalla de Opciones -->
+    <div id="options-screen" class="menu-screen hidden">
+      <div class="menu-header">
+        <h2>OPCIONES DE CONFIGURACIÓN</h2>
+        <button class="btn-back" id="btn-back-options">← VOLVER</button>
+      </div>
+      <div class="options-body">
+        <div class="options-section">
+          <h3>CALIDAD GRÁFICA</h3>
+          <div class="quality-selector">
+            <button class="quality-btn" data-quality="LOW">BAJO</button>
+            <button class="quality-btn" data-quality="MEDIUM">MEDIO</button>
+            <button class="quality-btn active" data-quality="HIGH">ALTO</button>
+            <button class="quality-btn" data-quality="ULTRA">ULTRA</button>
+          </div>
+          <div class="options-toggle-group">
+            <label class="toggle-option">
+              <input type="checkbox" id="opt-shadows" checked>
+              <span>Sombras Dinámicas</span>
+            </label>
+            <label class="toggle-option">
+              <input type="checkbox" id="opt-bloom" checked>
+              <span>Efecto Bloom & Resplandor</span>
+            </label>
+            <label class="toggle-option">
+              <input type="checkbox" id="opt-ssao" checked>
+              <span>Oclusión Ambiental (SSAO)</span>
+            </label>
+            <label class="toggle-option">
+              <input type="checkbox" id="opt-postprocess" checked>
+              <span>Postprocesado Cinematográfico</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="options-section">
+          <h3>SONIDO Y MÚSICA</h3>
+          <div class="slider-group">
+            <label>Volumen Principal: <span id="val-master-vol">80%</span></label>
+            <input type="range" id="opt-master-vol" min="0" max="100" value="80">
+          </div>
+          <div class="slider-group">
+            <label>Música Ambiental: <span id="val-music-vol">70%</span></label>
+            <input type="range" id="opt-music-vol" min="0" max="100" value="70">
+          </div>
+          <div class="slider-group">
+            <label>Efectos de Sonido / Voces: <span id="val-sfx-vol">90%</span></label>
+            <input type="range" id="opt-sfx-vol" min="0" max="100" value="90">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pantalla de Controles -->
+    <div id="controls-screen" class="menu-screen hidden">
+      <div class="menu-header">
+        <h2>GUÍA DE CONTROLES</h2>
+        <button class="btn-back" id="btn-back-controls">← VOLVER</button>
+      </div>
+      <div class="controls-grid">
+        <div class="control-card"><span class="key">W A S D</span><span class="action">Moverse</span></div>
+        <div class="control-card"><span class="key">Shift</span><span class="action">Correr</span></div>
+        <div class="control-card"><span class="key">C / Ctrl</span><span class="action">Agacharse</span></div>
+        <div class="control-card"><span class="key">E</span><span class="action">Interactuar / Hablar</span></div>
+        <div class="control-card"><span class="key">J / Tab</span><span class="action">Abrir Diario de Investigación</span></div>
+        <div class="control-card"><span class="key">Ratón</span><span class="action">Orientar Cámara</span></div>
+        <div class="control-card"><span class="key">Clic Izquierdo</span><span class="action">Examinar / Manipular Puzzle</span></div>
+        <div class="control-card"><span class="key">ESC</span><span class="action">Pausa / Cancelar</span></div>
+      </div>
+    </div>
+
+    <!-- Pantalla de Carga Cinematic/Transición -->
+    <div id="loading-screen" class="hidden">
+      <div class="loading-content">
+        <div class="greek-spinner"></div>
+        <h2 id="loading-title">CARGANDO CAPÍTULO...</h2>
+        <p id="loading-subtitle" class="loading-quote">"El destino guía a quienes lo buscan y arrastra a quienes se resisten."</p>
+        <div class="progress-bar-container">
+          <div id="loading-progress" class="progress-bar" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interfaz de Diálogo con NPCs -->
+    <div id="dialogue-overlay" class="hidden">
+      <div class="dialogue-box">
+        <div class="speaker-header">
+          <div class="speaker-portrait-frame">
+            <div id="speaker-portrait" class="speaker-portrait"></div>
+          </div>
+          <div class="speaker-info">
+            <h3 id="speaker-name">Personaje</h3>
+            <span id="speaker-title" class="speaker-title">Habitante de la isla</span>
+          </div>
+        </div>
+        <div class="dialogue-body">
+          <p id="dialogue-text">...</p>
+        </div>
+        <div id="dialogue-choices" class="dialogue-choices">
+          <!-- Opciones dinámicas -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Interfaz del Diario de Investigación / Manuscrito -->
+    <div id="journal-overlay" class="hidden">
+      <div class="journal-book">
+        <button id="btn-close-journal" class="journal-close-btn">✕</button>
+        <div class="journal-header">
+          <h2>DIARIO DE INVESTIGACIÓN</h2>
+          <nav class="journal-tabs">
+            <button class="jtab-btn active" data-tab="clues">PISTAS</button>
+            <button class="jtab-btn" data-tab="characters">PERSONAJES</button>
+            <button class="jtab-btn" data-tab="lore">MITO vs FICCIÓN</button>
+            <button class="jtab-btn" data-tab="deduction">TABLERO DE DEDUCCIÓN</button>
+          </nav>
+        </div>
+
+        <div class="journal-body">
+          <!-- Tab Pistas -->
+          <div id="tab-clues" class="jtab-content active">
+            <div class="journal-split">
+              <div class="clues-list" id="clues-list-container">
+                <!-- Generado -->
+              </div>
+              <div class="clue-detail-view" id="clue-detail-view">
+                <p class="empty-selection">Selecciona una pista para inspeccionar sus detalles arqueológicos.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Personajes -->
+          <div id="tab-characters" class="jtab-content">
+            <div class="journal-split">
+              <div class="characters-list" id="characters-list-container">
+                <!-- Generado -->
+              </div>
+              <div class="character-detail-view" id="character-detail-view">
+                <p class="empty-selection">Selecciona un personaje registrado para ver su perfil e información conocida.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Mito vs Ficción -->
+          <div id="tab-lore" class="jtab-content">
+            <div class="lore-view-container" id="lore-container">
+              <!-- Lore entries -->
+            </div>
+          </div>
+
+          <!-- Tab Deducción / Conclusiones -->
+          <div id="tab-deduction" class="jtab-content">
+            <div class="deduction-container">
+              <h3>VINCULACIÓN DE PISTAS & HIPÓTESIS</h3>
+              <p class="deduction-desc">Relaciona las evidencias descubiertas para construir una teoría y revelar la verdad tras la maldición.</p>
+              <div class="deduction-board" id="deduction-board">
+                <!-- Matriz o selector de deducciones -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Inspección 3D / Examen de Objetos -->
+    <div id="inspection-overlay" class="hidden">
+      <div class="inspection-header">
+        <h3 id="inspect-title">Objeto Encontrado</h3>
+        <span id="inspect-subtitle">Usa el ratón para girar e inspeccionar</span>
+      </div>
+      <div class="inspection-footer">
+        <p id="inspect-description">Detalles del objeto...</p>
+        <button id="btn-close-inspect" class="action-btn">GUARDAR EN EL DIARIO</button>
+      </div>
+    </div>
+
+    <!-- Overlay de Puzzles Interactivos -->
+    <div id="puzzle-overlay" class="hidden">
+      <div class="puzzle-header">
+        <h3 id="puzzle-title">Mecanismo Antiguo</h3>
+        <p id="puzzle-instruction">Alinea los espejos de bronce para guiar el rayo de luz hacia el santuario.</p>
+      </div>
+      <div id="puzzle-interactive-area" class="puzzle-area">
+        <!-- Renderizado dinámico del puzzle HTML/3D -->
+      </div>
+      <div class="puzzle-footer">
+        <button id="btn-exit-puzzle" class="action-btn secondary">CANCELAR / SALIR</button>
+      </div>
+    </div>
+
+    <!-- Pantalla de Resolución del Capítulo -->
+    <div id="resolution-screen" class="menu-screen hidden">
+      <div class="resolution-content">
+        <div class="resolution-header">
+          <span class="gold-badge">MISTERIO RESUELTO</span>
+          <h1 id="res-chapter-title">LA MIRADA DE MEDUSA</h1>
+          <div class="title-divider"><span>0</span></div>
+        </div>
+        <div class="resolution-body">
+          <p id="res-summary-text">Has descubierto la verdad sobre el templo de Atenea y el trágico destino de Medusa...</p>
+          <div class="resolution-stats">
+            <div class="stat-item">
+              <span class="stat-value" id="res-clues-count">0/0</span>
+              <span class="stat-label">Pistas Halladas</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="res-puzzles-count">3/3</span>
+              <span class="stat-label">Puzzles Resueltos</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="res-truth-status">100%</span>
+              <span class="stat-label">Comprensión del Mito</span>
+            </div>
+          </div>
+          <div class="lore-historical-note">
+            <h4>DIFERENCIA MITOLÓGICA HISTÓRICA:</h4>
+            <p id="res-lore-note">En las fuentes más antiguas (Hesíodo), Medusa nació como un monstruo ctónico con serpientes por cabellos. En versiones romanas posteriores (Ovidio), era una doncella mortal castigada trágicamente por Atenea. Tu investigación ha desentrañado el verdadero origen en este templo.</p>
+          </div>
+        </div>
+        <div class="resolution-actions">
+          <button id="btn-res-continue" class="menu-btn highlight">VOLVER AL MENÚ PRINCIPAL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Menú de Pausa -->
+    <div id="pause-menu" class="menu-screen hidden">
+      <div class="menu-overlay"></div>
+      <div class="menu-content compact">
+        <h2>PAUSA DE INVESTIGACIÓN</h2>
+        <nav class="menu-nav">
+          <button id="btn-pause-resume" class="menu-btn highlight">REANUDAR</button>
+          <button id="btn-pause-journal" class="menu-btn">VER DIARIO (J)</button>
+          <button id="btn-pause-options" class="menu-btn">OPCIONES</button>
+          <button id="btn-pause-main-menu" class="menu-btn">MENÚ PRINCIPAL</button>
+        </nav>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
