@@ -31,6 +31,7 @@ import { LightMirrorPuzzle } from '../puzzles/LightMirrorPuzzle';
 import { SacredSymbolPuzzle, SymbolDial } from '../puzzles/SacredSymbolPuzzle';
 import { ProceduralTextureGenerator } from '../graphics/ProceduralTextures';
 import { GreekArchitectureBuilder } from '../graphics/GreekArchitectureBuilder';
+import { HellenicAssetGenerator } from '../graphics/HellenicAssetGenerator';
 import { NPCCharacterBuilder } from '../npc/NPCCharacterBuilder';
 
 export class MedusaChapter extends MythChapter {
@@ -40,6 +41,7 @@ export class MedusaChapter extends MythChapter {
   private journalSystem!: JournalSystem;
   private dialogueSystem!: DialogueSystem;
   private archBuilder!: GreekArchitectureBuilder;
+  private assetGenerator!: HellenicAssetGenerator;
   private npcBuilder!: NPCCharacterBuilder;
 
   private mirrorPuzzle!: LightMirrorPuzzle;
@@ -48,7 +50,7 @@ export class MedusaChapter extends MythChapter {
   private medusaMesh: Mesh | null = null;
   private survivorNPCMesh: Mesh | null = null;
   private sanctuaryDoorMesh: Mesh | null = null;
-  private athenaStatueMesh: Mesh | null = null;
+  private athenaStatueMesh: TransformNode | null = null;
   private bronzeShieldOfferMesh: Mesh | null = null;
 
   private isMedusaDefeated: boolean = false;
@@ -118,8 +120,9 @@ export class MedusaChapter extends MythChapter {
     this.setupLighting();
     onProgress(60);
 
-    // Arquitectura Griega Encerrada + Templo Exterior
+    // Arquitectura Griega Encerrada + Templo Exterior + Hellenic Props
     this.archBuilder = new GreekArchitectureBuilder(this.scene);
+    this.assetGenerator = new HellenicAssetGenerator(this.scene);
     this.npcBuilder = new NPCCharacterBuilder(this.scene);
 
     this.buildEnclosedSanctuaryComplex();
@@ -174,15 +177,9 @@ export class MedusaChapter extends MythChapter {
   }
 
   private createBrazierLight(pos: Vector3): void {
-    const bowl = MeshBuilder.CreateCylinder("brazierBowl", { height: 0.4, diameterTop: 0.9, diameterBottom: 0.3 }, this.scene);
-    bowl.position = pos;
+    this.assetGenerator.createBronzeTripodBrazier(pos);
 
-    const bMat = new PBRMaterial("bMat", this.scene);
-    bMat.albedoColor = new Color3(0.3, 0.2, 0.1);
-    bMat.metallic = 0.8;
-    bowl.material = bMat;
-
-    const light = new PointLight("brazierLight", pos, this.scene);
+    const light = new PointLight("brazierLight", new Vector3(pos.x, pos.y + 1.6, pos.z), this.scene);
     light.diffuse = new Color3(1.0, 0.55, 0.15);
     light.intensity = 1.8;
     light.range = 10;
@@ -190,7 +187,34 @@ export class MedusaChapter extends MythChapter {
 
   private buildEnclosedSanctuaryComplex(): void {
     // 1. Hall Cerrado de Inicio con Techo, Paredes y Columnas Ionic
-    this.archBuilder.buildEnclosedSpawnHall(new Vector3(0, 0, -20), 16, 7, 18);
+    this.archBuilder.buildEnclosedSpawnHall(new Vector3(0, 0, -20), 18, 7.5, 22);
+
+    // Dynamic Props en el Hall: Ánforas cerámicas
+    const amphoraCollider1 = this.assetGenerator.createGreekAmphora(new Vector3(6, 0, -22));
+    const amphoraCollider2 = this.assetGenerator.createGreekAmphora(new Vector3(-6.5, 0, -18));
+
+    if (this.interactionSystem) {
+      this.interactionSystem.registerInteractable({
+        id: "amphora_1",
+        name: "Ánfora de Cerámica Ática",
+        actionText: "EXAMINAR PINTURA ROJA",
+        mesh: amphoraCollider1,
+        onInteract: () => {
+          this.audioManager.playSFX('clue');
+          this.journalSystem.registerClue({
+            id: "clue_amphora_paint",
+            title: "Pintura Mítica en Ánfora",
+            type: "INSCRIPTION",
+            description: "Ilustración de figuras rojas mostrando la mirada reflejada de la Gorgona sobre un escudo pulido.",
+            locationFound: "Atrio de Entrada",
+            mythVsFact: {
+              mythicElement: "Las ánforas cerámicas narraban episodios heroicos de la mitología.",
+              historicalElement: "La cerámica de figuras rojas fue una técnica artística destacada en la Atenas del siglo V a.C."
+            }
+          });
+        }
+      });
+    }
 
     // 2. Terreno Exterior para el Templo del Clímax
     const terrain = MeshBuilder.CreateGround("outerTerrain", { width: 100, height: 100 }, this.scene);
@@ -229,13 +253,8 @@ export class MedusaChapter extends MythChapter {
     this.sanctuaryDoorMesh.material = doorMat;
     this.sanctuaryDoorMesh.checkCollisions = true;
 
-    // Estatua de Atenea
-    this.athenaStatueMesh = MeshBuilder.CreateCylinder("athenaBody", { height: 3.6, diameterTop: 0.9, diameterBottom: 1.2 }, this.scene);
-    this.athenaStatueMesh.position = new Vector3(0, 4.2, 23.5);
-    const goldMat = new PBRMaterial("goldMat", this.scene);
-    goldMat.albedoColor = new Color3(0.88, 0.72, 0.25);
-    goldMat.metallic = 0.85;
-    this.athenaStatueMesh.material = goldMat;
+    // Monumental Athena Promachos Statue
+    this.athenaStatueMesh = this.assetGenerator.createAthenaMonument(new Vector3(0, 1.2, 23.5));
   }
 
   private buildPetrifiedStatues(): void {

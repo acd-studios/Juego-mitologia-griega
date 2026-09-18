@@ -53,7 +53,7 @@ export class UIManager {
       this.showMythSelectionScreen();
     });
 
-    const btnCloseMyth = document.getElementById("btn-close-myth-selection");
+    const btnCloseMyth = document.getElementById("btn-back-myth-selection") || document.getElementById("btn-close-myth-selection");
     btnCloseMyth?.addEventListener("click", () => {
       this.hideMythSelectionScreen();
       this.showMainMenu();
@@ -66,7 +66,7 @@ export class UIManager {
       this.showOptionsMenu();
     });
 
-    const btnCloseOptions = document.getElementById("btn-close-options");
+    const btnCloseOptions = document.getElementById("btn-back-options") || document.getElementById("btn-close-options");
     btnCloseOptions?.addEventListener("click", () => {
       this.hideOptionsMenu();
       this.showMainMenu();
@@ -79,19 +79,25 @@ export class UIManager {
       this.showControlsScreen();
     });
 
-    const btnCloseControls = document.getElementById("btn-close-controls");
+    const btnCloseControls = document.getElementById("btn-back-controls") || document.getElementById("btn-close-controls");
     btnCloseControls?.addEventListener("click", () => {
       this.hideControlsScreen();
       this.showMainMenu();
     });
 
     // Pause Menu
-    const btnResume = document.getElementById("btn-resume");
+    const btnResume = document.getElementById("btn-pause-resume") || document.getElementById("btn-resume");
     btnResume?.addEventListener("click", () => {
       this.hidePauseMenu();
     });
 
-    const btnExitToMain = document.getElementById("btn-exit-main");
+    const btnPauseJournal = document.getElementById("btn-pause-journal");
+    btnPauseJournal?.addEventListener("click", () => {
+      this.hidePauseMenu();
+      this.showJournal();
+    });
+
+    const btnExitToMain = document.getElementById("btn-pause-main-menu") || document.getElementById("btn-exit-main");
     btnExitToMain?.addEventListener("click", () => {
       this.hidePauseMenu();
       this.hideHUD();
@@ -115,7 +121,7 @@ export class UIManager {
   }
 
   private populateMythSelectionCards(): void {
-    const container = document.getElementById("myths-grid");
+    const container = document.getElementById("chapters-container") || document.getElementById("myths-grid");
     if (!container) return;
 
     container.innerHTML = "";
@@ -164,10 +170,10 @@ export class UIManager {
       });
     }
 
-    // Journal Tabs
-    document.querySelectorAll(".journal-tab").forEach((tab) => {
+    // Journal Tabs matching class jtab-btn in index.html
+    document.querySelectorAll(".jtab-btn, .journal-tab").forEach((tab) => {
       tab.addEventListener("click", (e) => {
-        document.querySelectorAll(".journal-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".jtab-btn, .journal-tab").forEach((t) => t.classList.remove("active"));
         (e.target as HTMLElement).classList.add("active");
         const tabName = (e.target as HTMLElement).getAttribute("data-tab");
         this.switchJournalTab(tabName);
@@ -181,7 +187,7 @@ export class UIManager {
 
     if (tabName === "characters") {
       cluesList.innerHTML = `<div class="info-card"><h4>Kallisto</h4><p>Superviviente y Erudito Helénico de la expedición.</p></div>`;
-    } else if (tabName === "myth-fact") {
+    } else if (tabName === "lore") {
       cluesList.innerHTML = `<div class="info-card"><h4>Mito vs Realidad</h4><p>Compara elementos de las fuentes griegas antiguas contra mitos populares.</p></div>`;
     } else if (tabName === "deduction") {
       cluesList.innerHTML = `<div class="info-card"><h4>Tablero de Deducción</h4><p>Relaciona pistas para desentrañar la verdad del santuario.</p></div>`;
